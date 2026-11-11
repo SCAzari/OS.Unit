@@ -1,0 +1,5 @@
+config BR2_PACKAGE_UNIT_RELEASE
+	bool "unit-release"
+	help
+	  Unit OS identity: /etc/os-release and /etc/unit-release,
+	  recording the Unit OS version and the build that produced it.

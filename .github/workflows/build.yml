@@ -1,0 +1,53 @@
+name: Build Unit OS
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      matrix:
+        config: [unit_qemu_x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
+            unzip rsync cpio file wget python3 qemu-system-x86 ccache
+          sudo chmod 666 /dev/kvm || true
+      - name: Restore download and compiler caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            dl
+            .ccache
+          key: unit-os-${{ matrix.config }}-${{ hashFiles('external/configs/*', '.gitmodules') }}-${{ github.run_id }}
+          restore-keys: |
+            unit-os-${{ matrix.config }}-${{ hashFiles('external/configs/*', '.gitmodules') }}-
+            unit-os-${{ matrix.config }}-
+      - name: Build
+        run: make CONFIG=${{ matrix.config }} 2>&1 | tee build.log | grep --line-buffered '^>>>'
+        shell: bash
+      - name: Record download hashes
+        if: always()
+        run: find dl -name 'linux-*.tar.*' -exec sha256sum {} \; || true
+      - name: Smoke check in emulation
+        run: make CONFIG=${{ matrix.config }} smoke
+      - name: Licence information
+        run: make CONFIG=${{ matrix.config }} legal-info >/dev/null
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.config }}
+          path: |
+            output/${{ matrix.config }}/images/
+            output/${{ matrix.config }}/legal-info/manifest.csv
+            build.log
+            smoke.log
+          if-no-files-found: warn

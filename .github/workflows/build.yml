@@ -16,9 +16,13 @@ jobs:
         with:
           submodules: true
       - name: Install host packages
+        timeout-minutes: 20
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update -o Acquire::Retries=5
-          sudo apt-get install -y --no-install-recommends -o Acquire::Retries=5 build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
+          APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
+          sudo -E apt-get update $APT
+          sudo -E apt-get install -y --no-install-recommends $APT build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
             unzip rsync cpio file wget python3 qemu-system-x86 ccache \
             patch perl git bzip2 xz-utils gzip g++ debianutils ca-certificates
           sudo chmod 666 /dev/kvm || true

@@ -1,0 +1,6 @@
+config BR2_PACKAGE_UNIT_FIRMWARE
+	bool "unit-firmware"
+	help
+	  Intel Panther Lake firmware for Unit OS, from a pinned
+	  linux-firmware release: Xe3 graphics (GuC, HuC, GSC),
+	  display (DMC) and IPU7 camera, with their licences.

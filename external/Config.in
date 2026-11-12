@@ -1,3 +1,4 @@
 menu "Unit OS"
 source "$BR2_EXTERNAL_UNIT_PATH/package/unit-release/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/unit-firmware/Config.in"
 endmenu

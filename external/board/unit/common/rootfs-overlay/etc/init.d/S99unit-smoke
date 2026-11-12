@@ -5,7 +5,7 @@ case "$1" in start) ;; *) exit 0 ;; esac
 grep -q 'unit.smoke=1' /proc/cmdline || exit 0
 echo "UNIT-SMOKE: $(cat /etc/unit-release)"
 echo "UNIT-SMOKE: kernel $(uname -r)"
-for f in xe/ptl_guc_70.bin xe/ptl_huc.bin xe/ptl_gsc_1.bin i915/xe3lpd_dmc.bin; do
+for f in xe/ptl_guc_70.bin xe/ptl_huc.bin xe/ptl_gsc_1.bin i915/xe3lpd_dmc.bin intel/ipu/ipu7ptl_fw.bin; do
 	if [ -e /lib/firmware/$f ] || [ -e /lib/firmware/$f.zst ] || [ -e /lib/firmware/$f.xz ]; then
 		echo "UNIT-SMOKE: firmware $f present"
 	else

@@ -1,0 +1,20 @@
+name: Probe linux-firmware releases
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-firmware.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          git ls-remote --tags https://gitlab.com/kernel-firmware/linux-firmware.git | grep -oE '20(25|26)[0-9]{4}$' | sort -u | awk '$1>="20251011"' > tags.txt
+          cat tags.txt
+          for t in $(cat tags.txt); do
+            u=https://cdn.kernel.org/pub/linux/kernel/firmware/linux-firmware-$t.tar.xz
+            curl -fsSL -o fw.tar.xz "$u" || { echo "$t: no tarball"; continue; }
+            echo "$t tarball $(sha256sum fw.tar.xz | cut -d' ' -f1)"
+            tar -tJf fw.tar.xz | grep -E 'xe/ptl_|xe3lpd_dmc|ipu7ptl' | sed "s/^/$t: /"
+            rm -f fw.tar.xz
+          done

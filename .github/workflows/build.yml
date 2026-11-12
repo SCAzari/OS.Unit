@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 350
+    timeout-minutes: 358
     strategy:
       matrix:
         config: [unit_qemu_x86_64]
@@ -44,7 +44,7 @@ jobs:
             unit-os-${{ matrix.config }}-${{ hashFiles('external/configs/*', '.gitmodules') }}-
             unit-os-${{ matrix.config }}-
       - name: Build
-        timeout-minutes: 300
+        timeout-minutes: 325
         run: |
           set +e
           make UNIT_IMAGE=${{ matrix.config }} > build.log 2>&1 &

@@ -10,6 +10,7 @@ CONFIG_MODULES=y
 CONFIG_MODULE_UNLOAD=y
 # Test harness and trace capture (UNIT-OS-WP-0002): synthetic input, event tracing,
 # kernel log timestamps, and the 9p share that returns results to the host
+CONFIG_INPUT_MISC=y
 CONFIG_INPUT_UINPUT=y
 CONFIG_FTRACE=y
 CONFIG_ENABLE_DEFAULT_TRACERS=y

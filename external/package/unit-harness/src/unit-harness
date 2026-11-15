@@ -36,15 +36,22 @@ note_check() { if [ "$1" = "Harness check passed" ]; then CHK_PASS=$((CHK_PASS +
 
 # inject_and_stamp DIR COUNT INTERVAL_MS: runs unit-inject and unit-evstamp together.
 inject_and_stamp() {
-	d=$1; n=$2; iv=$3
-	unit-inject --out "$d/inject" --count "$n" --interval-ms "$iv" --start-ms 3000 > "$d/inject.log" 2>&1 &
-	ip=$!
-	node=""; i=0
-	while [ -z "$node" ] && [ $i -lt 10 ]; do sleep 1; node=$(awk '/^NODE/ { print $2 }' "$d/inject.log"); i=$((i + 1)); done
-	[ -z "$node" ] && { echo "no input node" > "$d/error"; wait $ip; return 1; }
-	unit-evstamp --dev "$node" --out "$d/stamp" --max "$n" --timeout-ms $(( n * iv + 20000 )) > "$d/stamp.log" 2>&1 &
-	sp=$!
-	wait $ip; wait $sp
+	# Own variable names: sh has no local variables, and callers use d, n and i.
+	_d=$1; _n=$2; _iv=$3
+	unit-inject --out "$_d/inject" --count "$_n" --interval-ms "$_iv" --start-ms 3000 > "$_d/inject.log" 2>&1 &
+	_ip=$!
+	_node=""; _i=0
+	while [ -z "$_node" ] && [ $_i -lt 10 ]; do sleep 1; _node=$(awk '/^NODE/ { print $2 }' "$_d/inject.log"); _i=$((_i + 1)); done
+	if [ -z "$_node" ]; then
+		echo "no input node" > "$_d/error"
+		echo "unit-harness: synthetic input device not created; unit-inject said:" >&2
+		sed 's/^/  /' "$_d/inject.log" >&2
+		kill $_ip 2>/dev/null; wait $_ip
+		return 1
+	fi
+	unit-evstamp --dev "$_node" --out "$_d/stamp" --max "$_n" --timeout-ms $(( _n * _iv + 20000 )) > "$_d/stamp.log" 2>&1 &
+	_sp=$!
+	wait $_ip; wait $_sp
 	return 0
 }
 

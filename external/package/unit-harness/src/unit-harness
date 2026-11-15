@@ -1,0 +1,132 @@
+#!/bin/sh
+# unit-harness: run harness scenarios and write result records (UNIT-OS-WP-0002).
+#
+# Usage: unit-harness [H01,H02,...|all]
+# Results go to the 9p share tagged "unitresults" when the host provides one (QEMU),
+# otherwise to /var/lib/unit-test/results. Each scenario writes a PA06 result record
+# (<id>.json) and its raw data in its own directory; the run ends with a summary line.
+#
+# Scenarios
+#   H01 Input timestamp chain    harness check: synthetic presses, every kernel timestamp (E1)
+#                                between injection and read; none lost or reordered; no key
+#                                codes recorded
+#   H02 Start-up stages          measurement: kernel start to init and to harness ready
+#   H03 Instrumentation overhead measurement: input read latency with tracing reduced and on
+#   H04 Bounded capture          harness check: storage budget, storage-skip path, allow list,
+#                                files outside the workspace untouched
+set -u
+. /usr/lib/unit-harness/lib.sh
+SEL=${1:-all}
+READY_UPTIME=$(cut -d' ' -f1 /proc/uptime)
+case "$(cat /sys/class/dmi/id/product_name 2>/dev/null)" in
+	*QEMU*|*Standard\ PC*) : "${UNIT_CONFIGURATION:=emulation (QEMU)}" ;;
+esac
+export UNIT_CONFIGURATION=${UNIT_CONFIGURATION:-unknown}
+RUN=$(date -u +%Y%m%dT%H%M%SZ)
+if mkdir -p /mnt/results && mount -t 9p -o trans=virtio,version=9p2000.L unitresults /mnt/results 2>/dev/null; then
+	BASE=/mnt/results
+else
+	BASE=/var/lib/unit-test/results
+fi
+WS=$BASE/$RUN; mkdir -p "$WS"
+echo "UNIT-HARNESS: run $RUN, results in $WS"
+CHK_PASS=0; CHK_FAIL=0; MEAS=0
+want() { [ "$SEL" = all ] || echo ",$SEL," | grep -q ",$1,"; }
+note_check() { if [ "$1" = "Harness check passed" ]; then CHK_PASS=$((CHK_PASS + 1)); else CHK_FAIL=$((CHK_FAIL + 1)); fi; }
+
+# inject_and_stamp DIR COUNT INTERVAL_MS: runs unit-inject and unit-evstamp together.
+inject_and_stamp() {
+	d=$1; n=$2; iv=$3
+	unit-inject --out "$d/inject" --count "$n" --interval-ms "$iv" --start-ms 3000 > "$d/inject.log" 2>&1 &
+	ip=$!
+	node=""; i=0
+	while [ -z "$node" ] && [ $i -lt 10 ]; do sleep 1; node=$(awk '/^NODE/ { print $2 }' "$d/inject.log"); i=$((i + 1)); done
+	[ -z "$node" ] && { echo "no input node" > "$d/error"; wait $ip; return 1; }
+	unit-evstamp --dev "$node" --out "$d/stamp" --max "$n" --timeout-ms $(( n * iv + 20000 )) > "$d/stamp.log" 2>&1 &
+	sp=$!
+	wait $ip; wait $sp
+	return 0
+}
+
+if want H01; then
+	REC_START=$(utc); d=$WS/H01; mkdir -p "$d"
+	faults="[]"
+	if inject_and_stamp "$d" 200 20; then
+		counts=$(unit-pair "$d/inject" "$d/stamp" "$d/delta")
+		ks=$(unit-stats < "$d/delta.kernel"); rs=$(unit-stats < "$d/delta.read")
+		fields=$(awk '{ if (NF != 3) bad++ } END { print bad + 0 }' "$d/stamp")
+		ok=$(echo "$counts" | awk -F'[:,}]' '{ for (i = 1; i < NF; i++) v[$i] = $(i + 1) } END { print (v["\"injected\""] == 200 && v["\"recorded\""] == 200 && v["\"lost\""] == 0 && v["\"reordered\""] == 0 && v["\"out_of_window\""] == 0) ? 1 : 0 }')
+		[ "$fields" -ne 0 ] && { ok=0; faults='["stamp file holds more than seq and two timestamps"]'; }
+	else
+		counts='{}'; ks='{"n":0}'; rs='{"n":0}'; ok=0; faults='["synthetic input device not created"]'
+	fi
+	[ "$ok" = 1 ] && st="Harness check passed" || st="Harness check failed"
+	note_check "$st"
+	record "$d/H01.json" H01 "Input timestamp chain (E1)" "harness check" "$st" "200 presses, 20 ms apart" \
+		"{\"kernel_minus_injection_us\":$ks,\"read_minus_injection_us\":$rs}" "$counts" "" "$faults" \
+		'["H01/inject","H01/stamp"]' '{"tools":"unit-inject, unit-evstamp","clock":"CLOCK_MONOTONIC","privacy":"no key codes or values recorded"}'
+fi
+
+if want H02; then
+	REC_START=$(utc); d=$WS/H02; mkdir -p "$d"
+	dmesg > "$d/dmesg.txt" 2>/dev/null || true
+	init_s=$(awk -F'[][]' '/Run .* as init process/ { gsub(/ /, "", $2); print $2; exit }' "$d/dmesg.txt")
+	m1=$(metric "kernel start to init" "${init_s:-}" s "" "measurement only" "" 1)
+	m2=$(metric "kernel start to harness ready" "$READY_UPTIME" s 10 "os.unit D-06 Limits r0.3, D06-20 candidate (from boot loader start to lock screen); emulation boots the kernel directly and has no lock screen yet" "" 1)
+	MEAS=$((MEAS + 1))
+	record "$d/H02.json" H02 "Start-up stages" "measurement" "Not assessed" "cold boot in the current configuration" \
+		"{\"kernel_to_init_s\":${init_s:-null},\"kernel_to_harness_ready_s\":$READY_UPTIME}" '{"trials":1}' "$m1,$m2" '[]' \
+		'["H02/dmesg.txt"]' '{"tools":"kernel log timestamps, /proc/uptime","clock":"kernel monotonic since start","uncertainty":"one trial; Performance procedure PA03 needs five cold trials"}'
+fi
+
+if want H03; then
+	REC_START=$(utc); d=$WS/H03; mkdir -p "$d/off" "$d/on"
+	faults="[]"; ok=1
+	inject_and_stamp "$d/off" 150 10 || ok=0
+	unit-trace start > "$d/on/trace-start.log" 2>&1 || ok=0
+	inject_and_stamp "$d/on" 150 10 || ok=0
+	UNIT_TRACE_BUDGET=4194304 unit-trace stop "$d/on/trace" > /dev/null 2>&1 || ok=0
+	for m in off on; do unit-pair "$d/$m/inject" "$d/$m/stamp" "$d/$m/delta" > "$d/$m/counts" 2>/dev/null || ok=0; done
+	so=$(unit-stats < "$d/off/delta.read"); sn=$(unit-stats < "$d/on/delta.read")
+	mo=$(echo "$so" | awk -F'"median":' 'NF > 1 { split($2, a, ","); print a[1] }')
+	mn=$(echo "$sn" | awk -F'"median":' 'NF > 1 { split($2, a, ","); print a[1] }')
+	pct=""
+	[ -n "$mo" ] && [ -n "$mn" ] && pct=$(awk -v a="$mo" -v b="$mn" 'BEGIN { if (a > 0) printf "%.2f", (b - a) / a * 100 }')
+	[ "$ok" = 1 ] || faults='["capture or input run failed"]'
+	m=$(metric "change in median read latency with tracing on" "$pct" "%" 5 "os.unit D-06 Limits r0.3, D06-29 candidate" "" "$ok")
+	MEAS=$((MEAS + 1))
+	record "$d/H03.json" H03 "Instrumentation overhead (PA08)" "measurement" "Not assessed" "150 presses, 10 ms apart, tracing reduced then on" \
+		"{\"read_latency_us_tracing_reduced\":$so,\"read_latency_us_tracing_on\":$sn}" "{\"off\":$(cat "$d/off/counts" 2>/dev/null || echo '{}'),\"on\":$(cat "$d/on/counts" 2>/dev/null || echo '{}')}" \
+		"$m" "$faults" '["H03/on/trace","H03/on/trace.meta"]' "{\"tools\":\"unit-trace, unit-inject, unit-evstamp\",\"trace\":$(cat "$d/on/trace.meta" 2>/dev/null || echo '{}')}"
+fi
+
+if want H04; then
+	REC_START=$(utc); d=$WS/H04; mkdir -p "$d"
+	f=""; ok=1
+	mkdir -p /root && echo "unit canary $RUN" > /root/unit-canary; before=$(sha256sum /root/unit-canary | cut -d' ' -f1)
+	if unit-trace start syscalls:sys_enter_write > "$d/refused.log" 2>&1; then ok=0; f="$f\"event outside the allow list accepted\","; unit-trace stop "$d/discard" > /dev/null 2>&1; fi
+	unit-trace start > /dev/null 2>&1 || { ok=0; f="$f\"capture did not start\","; }
+	i=0; while [ $i -lt 300 ]; do ls -R /usr > /dev/null 2>&1; i=$((i + 1)); done
+	UNIT_TRACE_BUDGET=32768 unit-trace stop "$d/trace" > /dev/null 2>&1 || { ok=0; f="$f\"capture did not stop\","; }
+	meta=$(cat "$d/trace.meta" 2>/dev/null || echo '{}')
+	size=$(wc -c < "$d/trace" 2>/dev/null | tr -d ' '); size=${size:-0}
+	[ "$size" -le 32768 ] || { ok=0; f="$f\"trace larger than its budget\","; }
+	echo "$meta" | grep -q '"truncated":true' || { ok=0; f="$f\"budget stop not exercised: trace smaller than the budget\","; }
+	unit-trace start > /dev/null 2>&1; UNIT_TRACE_RESERVE_KB=1000000000 unit-trace stop "$d/skipped" > /dev/null 2>&1
+	{ [ ! -e "$d/skipped" ] && grep -q 'skipped: storage budget' "$d/skipped.meta"; } || { ok=0; f="$f\"storage-skip path wrote a trace\","; }
+	after=$(sha256sum /root/unit-canary | cut -d' ' -f1)
+	[ "$before" = "$after" ] || { ok=0; f="$f\"file outside the workspace changed\","; }
+	rm -f /root/unit-canary
+	faults="[${f%,}]"
+	[ "$ok" = 1 ] && st="Harness check passed" || st="Harness check failed"
+	note_check "$st"
+	record "$d/H04.json" H04 "Bounded capture (PA08)" "harness check" "$st" "300 directory walks under tracing; 32 KiB budget" \
+		"{\"written_bytes\":$size}" "{\"trace\":$meta}" "" "$faults" '["H04/trace","H04/trace.meta","H04/skipped.meta"]' \
+		'{"tools":"unit-trace","allow_list":"scheduling, interrupt, display-timing and power events only"}'
+fi
+
+sync
+echo "UNIT-HARNESS: DONE checks_passed=$CHK_PASS checks_failed=$CHK_FAIL measurements=$MEAS"
+[ "$CHK_FAIL" -eq 0 ] && echo "UNIT-HARNESS: PASS" || echo "UNIT-HARNESS: FAIL"
+[ "$BASE" = /mnt/results ] && umount /mnt/results 2>/dev/null
+[ "$CHK_FAIL" -eq 0 ]

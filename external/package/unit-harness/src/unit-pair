@@ -1,0 +1,22 @@
+#!/bin/sh
+# unit-pair: check the input timestamp chain from unit-inject and unit-evstamp output.
+# Usage: unit-pair INJECT_FILE STAMP_FILE OUT_PREFIX
+# Writes OUT_PREFIX.kernel (kernel minus injection, microseconds) and OUT_PREFIX.read
+# (read minus injection, microseconds), and prints JSON counts:
+# {"injected":..,"recorded":..,"lost":..,"reordered":..,"out_of_window":..}
+# An event is out of window when its kernel timestamp is before its injection or after its read.
+set -eu
+inj=$1; st=$2; out=$3
+awk -v OK="$out.kernel" -v OR="$out.read" '
+FNR == NR { t[$1] = $2; ni++; next }
+{
+	nr++
+	if ($1 != nr - 1) reord++
+	if (!($1 in t)) next
+	k = ($2 - t[$1]) / 1000; r = ($3 - t[$1]) / 1000
+	if ($2 < t[$1] || $3 < $2) oow++
+	printf "%.3f\n", k > OK; printf "%.3f\n", r > OR
+}
+END {
+	printf "{\"injected\":%d,\"recorded\":%d,\"lost\":%d,\"reordered\":%d,\"out_of_window\":%d}\n", ni, nr, (ni > nr ? ni - nr : 0), reord + 0, oow + 0
+}' "$inj" "$st"

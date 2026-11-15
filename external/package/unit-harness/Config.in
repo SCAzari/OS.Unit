@@ -1,0 +1,9 @@
+config BR2_PACKAGE_UNIT_HARNESS
+	bool "unit-harness"
+	help
+	  Unit OS test harness and trace capture for development and
+	  test images (work package UNIT-OS-WP-0002). Records input
+	  timestamps, injects synthetic input, captures bounded kernel
+	  traces and writes result records under Performance procedures
+	  PA06 (result record), PA07 (pass logic) and PA08 (efficient
+	  instrumentation). Not for release images.

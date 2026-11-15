@@ -1,0 +1,13 @@
+#!/bin/sh
+# unit-stats: summary statistics of one number per line on stdin (Performance procedure PA03).
+# Prints JSON: {"n":..,"median":..,"p95":..,"max":..,"mean":..}. p95 uses the nearest-rank method.
+# An empty input gives {"n":0} so that the result is recorded as not assessed, never as zero.
+sort -n | awk '
+{ v[NR] = $1 + 0; s += $1 }
+END {
+	n = NR
+	if (n == 0) { print "{\"n\":0}"; exit }
+	k = int(0.95 * n); if (k < 0.95 * n) k++
+	if (n % 2) med = v[(n + 1) / 2]; else med = (v[n / 2] + v[n / 2 + 1]) / 2
+	printf "{\"n\":%d,\"median\":%.3f,\"p95\":%.3f,\"max\":%.3f,\"mean\":%.3f}\n", n, med, v[k], v[n], s / n
+}'

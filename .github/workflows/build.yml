@@ -68,6 +68,8 @@ jobs:
         run: find dl -name 'linux-*.tar.*' -exec sha256sum {} \; || true
       - name: Smoke check in emulation
         run: make UNIT_IMAGE=${{ matrix.config }} smoke
+      - name: Test harness in emulation
+        run: make UNIT_IMAGE=${{ matrix.config }} harness
       - name: Licence information
         run: make UNIT_IMAGE=${{ matrix.config }} legal-info >/dev/null
       - uses: actions/upload-artifact@v4
@@ -79,4 +81,6 @@ jobs:
             output/${{ matrix.config }}/legal-info/manifest.csv
             build.log
             smoke.log
+            harness.log
+            results/
           if-no-files-found: warn

@@ -8,9 +8,13 @@
  * unit-evstamp output checks the timestamp chain: every kernel timestamp must lie
  * between its injection time and its read time, with no events lost or reordered.
  *
+ * The output file must lie inside UNIT_WORKSPACE and is not opened through a link.
+ *
  * Usage: unit-inject --out FILE [--count N] [--interval-ms MS] [--start-ms MS]
  */
 #define _GNU_SOURCE
+#include <errno.h>
+#include <limits.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <linux/uinput.h>
@@ -20,6 +24,24 @@
 #include <sys/ioctl.h>
 #include <time.h>
 #include <unistd.h>
+
+/* Workspace boundary (PA08): the output file's directory must resolve inside UNIT_WORKSPACE
+ * (default /var/lib/unit-test/results) and the file is opened without following links. */
+static FILE *open_in_workspace(const char *out)
+{
+	const char *ws = getenv("UNIT_WORKSPACE");
+	if (!ws || !*ws) ws = "/var/lib/unit-test/results";
+	char wr[PATH_MAX], dr[PATH_MAX], dir[PATH_MAX];
+	snprintf(dir, sizeof dir, "%s", out);
+	char *slash = strrchr(dir, '/');
+	if (slash == dir) dir[1] = 0; else if (slash) *slash = 0; else snprintf(dir, sizeof dir, ".");
+	if (!realpath(ws, wr) || !realpath(dir, dr)) { errno = ENOENT; return NULL; }
+	size_t n = strlen(wr);
+	if (strncmp(dr, wr, n) != 0 || (dr[n] != '/' && dr[n] != 0)) { errno = EACCES; return NULL; }
+	int fd = open(out, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+	if (fd < 0) return NULL;
+	return fdopen(fd, "w");
+}
 
 static long long now_ns(void)
 {
@@ -57,6 +79,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "usage: unit-inject --out FILE [--count N] [--interval-ms MS] [--start-ms MS]\n");
 		return 2;
 	}
+	FILE *f = open_in_workspace(out);
+	if (!f) { perror("unit-inject: output outside the workspace or not writable"); return 1; }
 	int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fd < 0) { perror("unit-inject: open /dev/uinput"); return 1; }
 	ioctl(fd, UI_SET_EVBIT, EV_KEY);
@@ -87,8 +111,6 @@ int main(int argc, char **argv)
 	printf("NODE %s\n", node);
 	fflush(stdout);
 
-	FILE *f = fopen(out, "w");
-	if (!f) { perror("unit-inject: open output"); return 1; }
 	sleep_ms(start);
 	for (long i = 0; i < count; i++) {
 		long long t = now_ns();

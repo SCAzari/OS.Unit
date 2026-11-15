@@ -3,17 +3,24 @@
 #
 # Usage: unit-harness [H01,H02,...|all]
 # Results go to the 9p share tagged "unitresults" when the host provides one (QEMU),
-# otherwise to /var/lib/unit-test/results. Each scenario writes a PA06 result record
+# otherwise to /var/lib/unit-test/results. Each run has its own workspace directory; every
+# harness tool is confined to it (UNIT_WORKSPACE). Each scenario writes a PA06 result record
 # (<id>.json) and its raw data in its own directory; the run ends with a summary line.
 #
-# Scenarios
+# Scenarios (workload revisions are pinned below; change the revision when a workload changes)
 #   H01 Input timestamp chain    harness check: synthetic presses, every kernel timestamp (E1)
 #                                between injection and read; none lost or reordered; no key
 #                                codes recorded
 #   H02 Start-up stages          measurement: kernel start to init and to harness ready
-#   H03 Instrumentation overhead measurement: input read latency with tracing reduced and on
-#   H04 Bounded capture          harness check: storage budget, storage-skip path, allow list,
-#                                files outside the workspace untouched
+#   H03 Instrumentation overhead measurement: input read latency with tracing reduced and on,
+#                                three alternating pairs
+#   H04 Bounded, isolated capture harness check: allow list, other events disabled, exported
+#                                events and fields verified, storage budget and storage-skip
+#                                path, output confined to the workspace, no file outside the
+#                                workspace created or changed
+#
+# PA07: a functional failure fails its scenario and the run. A valid measurement without an
+# approved limit is Not assessed and does not fail the run.
 set -u
 . /usr/lib/unit-harness/lib.sh
 SEL=${1:-all}
@@ -29,10 +36,19 @@ else
 	BASE=/var/lib/unit-test/results
 fi
 WS=$BASE/$RUN; mkdir -p "$WS"
+export UNIT_WORKSPACE=$WS
 echo "UNIT-HARNESS: run $RUN, results in $WS"
-CHK_PASS=0; CHK_FAIL=0; MEAS=0
+CHK_PASS=0; CHK_FAIL=0; FUNC_FAIL=0; MEAS=0
 want() { [ "$SEL" = all ] || echo ",$SEL," | grep -q ",$1,"; }
 note_check() { if [ "$1" = "Harness check passed" ]; then CHK_PASS=$((CHK_PASS + 1)); else CHK_FAIL=$((CHK_FAIL + 1)); fi; }
+note_meas() { MEAS=$((MEAS + 1)); [ "$1" = 1 ] || FUNC_FAIL=$((FUNC_FAIL + 1)); }
+
+# Perfect counts for N presses: every press recorded, none lost, reordered or out of window.
+counts_ok() {
+	echo "$1" | tr -d '{}" ' | awk -F'[:,]' -v n="$2" '{ for (i = 1; i < NF; i += 2) v[$i] = $(i + 1) }
+		END { print (v["injected"] == n && v["recorded"] == n && v["lost"] == 0 && v["reordered"] == 0 && v["out_of_window"] == 0) ? 1 : 0 }'
+}
+json_num() { echo "$1" | awk -F"\"$2\":" 'NF > 1 { split($2, a, /[,}]/); print a[1] }'; }
 
 # inject_and_stamp DIR COUNT INTERVAL_MS: runs unit-inject and unit-evstamp together.
 inject_and_stamp() {
@@ -58,11 +74,12 @@ inject_and_stamp() {
 if want H01; then
 	REC_START=$(utc); d=$WS/H01; mkdir -p "$d"
 	faults="[]"
+	W=$(workload H01-W r1 '{"presses":200,"interval_ms":20,"start_delay_ms":3000,"key":"one synthetic key, code not recorded"}')
 	if inject_and_stamp "$d" 200 20; then
 		counts=$(unit-pair "$d/inject" "$d/stamp" "$d/delta")
 		ks=$(unit-stats < "$d/delta.kernel"); rs=$(unit-stats < "$d/delta.read")
 		fields=$(awk '{ if (NF != 3) bad++ } END { print bad + 0 }' "$d/stamp")
-		ok=$(echo "$counts" | tr -d '{}" ' | awk -F'[:,]' '{ for (i = 1; i < NF; i += 2) v[$i] = $(i + 1) } END { print (v["injected"] == 200 && v["recorded"] == 200 && v["lost"] == 0 && v["reordered"] == 0 && v["out_of_window"] == 0) ? 1 : 0 }')
+		ok=$(counts_ok "$counts" 200)
 		[ "$ok" = 1 ] || faults="[\"counts outside the pass rule: $(echo "$counts" | tr -d '{}"')\"]"
 		[ "$fields" -ne 0 ] && { ok=0; faults='["stamp file holds more than seq and two timestamps"]'; }
 	else
@@ -70,71 +87,127 @@ if want H01; then
 	fi
 	[ "$ok" = 1 ] && st="Harness check passed" || st="Harness check failed"
 	note_check "$st"
-	record "$d/H01.json" H01 "Input timestamp chain (E1)" "harness check" "$st" "200 presses, 20 ms apart" \
+	record "$d/H01.json" H01 "Input timestamp chain (E1)" "harness check" "$st" "$W" \
 		"{\"kernel_minus_injection_us\":$ks,\"read_minus_injection_us\":$rs}" "$counts" "" "$faults" \
-		'["H01/inject","H01/stamp"]' '{"tools":"unit-inject, unit-evstamp","clock":"CLOCK_MONOTONIC","privacy":"no key codes or values recorded"}'
+		'["H01/inject","H01/stamp","H01/delta.kernel","H01/delta.read"]' \
+		'{"tools":"unit-inject, unit-evstamp, unit-pair","clock":"CLOCK_MONOTONIC","privacy":"no key codes or values recorded"}' \
+		"Pass rule is exact (counts and ordering), so it carries no statistical uncertainty. Timing statistics are descriptive: one run of 200 presses; kernel input timestamps have 1 microsecond resolution; injection and read times are taken in user space around the write and read calls, so each delta includes scheduling delay in the emulator"
 fi
 
 if want H02; then
 	REC_START=$(utc); d=$WS/H02; mkdir -p "$d"
+	W=$(workload H02-W r1 '{"trials":1,"boot":"cold boot in the current configuration, kernel loaded directly by QEMU"}')
 	dmesg > "$d/dmesg.txt" 2>/dev/null || true
 	init_s=$(awk -F'[][]' '/Run .* as init process/ { gsub(/ /, "", $2); print $2; exit }' "$d/dmesg.txt")
-	m1=$(metric "kernel start to init" "${init_s:-}" s "" "measurement only" "" 1)
-	m2=$(metric "kernel start to harness ready" "$READY_UPTIME" s 10 "os.unit D-06 Limits r0.3, D06-20 candidate (from boot loader start to lock screen); emulation boots the kernel directly and has no lock screen yet" "" 1)
-	MEAS=$((MEAS + 1))
-	record "$d/H02.json" H02 "Start-up stages" "measurement" "Not assessed" "cold boot in the current configuration" \
-		"{\"kernel_to_init_s\":${init_s:-null},\"kernel_to_harness_ready_s\":$READY_UPTIME}" '{"trials":1}' "$m1,$m2" '[]' \
-		'["H02/dmesg.txt"]' '{"tools":"kernel log timestamps, /proc/uptime","clock":"kernel monotonic since start","uncertainty":"one trial; Performance procedure PA03 needs five cold trials"}'
+	ok=1; faults="[]"
+	[ -n "$init_s" ] && [ -n "$READY_UPTIME" ] || { ok=0; faults='["start-up markers not found in the kernel log"]'; }
+	m1=$(metric "kernel start to init" "${init_s:-}" s "" "measurement only" "" "$ok")
+	m2=$(metric "kernel start to harness ready" "$READY_UPTIME" s 10 "os.unit D-06 Limits r0.3, D06-20 candidate (from boot loader start to lock screen); emulation boots the kernel directly and has no lock screen yet" "" "$ok")
+	note_meas "$ok"
+	record "$d/H02.json" H02 "Start-up stages" "measurement" "$(scenario_status "$ok")" "$W" \
+		"{\"kernel_to_init_s\":${init_s:-null},\"kernel_to_harness_ready_s\":${READY_UPTIME:-null}}" '{"trials":1}' "$m1,$m2" "$faults" \
+		'["H02/dmesg.txt"]' '{"tools":"kernel log timestamps, /proc/uptime","clock":"kernel monotonic since start"}' \
+		"One trial: no spread can be stated. Performance procedure PA03 needs five cold trials. Kernel log timestamps have 1 microsecond resolution and /proc/uptime 10 milliseconds"
 fi
 
 if want H03; then
-	REC_START=$(utc); d=$WS/H03; mkdir -p "$d/off" "$d/on"
-	faults="[]"; ok=1
-	inject_and_stamp "$d/off" 150 10 || ok=0
-	unit-trace start > "$d/on/trace-start.log" 2>&1 || ok=0
-	inject_and_stamp "$d/on" 150 10 || ok=0
-	UNIT_TRACE_BUDGET=4194304 unit-trace stop "$d/on/trace" > /dev/null 2>&1 || ok=0
-	for m in off on; do unit-pair "$d/$m/inject" "$d/$m/stamp" "$d/$m/delta" > "$d/$m/counts" 2>/dev/null || ok=0; done
-	so=$(unit-stats < "$d/off/delta.read"); sn=$(unit-stats < "$d/on/delta.read")
-	mo=$(echo "$so" | awk -F'"median":' 'NF > 1 { split($2, a, ","); print a[1] }')
-	mn=$(echo "$sn" | awk -F'"median":' 'NF > 1 { split($2, a, ","); print a[1] }')
-	pct=""
-	[ -n "$mo" ] && [ -n "$mn" ] && pct=$(awk -v a="$mo" -v b="$mn" 'BEGIN { if (a > 0) printf "%.2f", (b - a) / a * 100 }')
-	[ "$ok" = 1 ] || faults='["capture or input run failed"]'
-	m=$(metric "change in median read latency with tracing on" "$pct" "%" 5 "os.unit D-06 Limits r0.3, D06-29 candidate" "" "$ok")
-	MEAS=$((MEAS + 1))
-	record "$d/H03.json" H03 "Instrumentation overhead (PA08)" "measurement" "Not assessed" "150 presses, 10 ms apart, tracing reduced then on" \
-		"{\"read_latency_us_tracing_reduced\":$so,\"read_latency_us_tracing_on\":$sn}" "{\"off\":$(cat "$d/off/counts" 2>/dev/null || echo '{}'),\"on\":$(cat "$d/on/counts" 2>/dev/null || echo '{}')}" \
-		"$m" "$faults" '["H03/on/trace","H03/on/trace.meta"]' "{\"tools\":\"unit-trace, unit-inject, unit-evstamp\",\"trace\":$(cat "$d/on/trace.meta" 2>/dev/null || echo '{}')}"
+	REC_START=$(utc); d=$WS/H03; mkdir -p "$d"
+	W=$(workload H03-W r2 '{"pairs":3,"order":"tracing reduced then on, alternating","presses_per_run":150,"interval_ms":10,"start_delay_ms":3000,"trace_events":"unit-trace default set"}')
+	faults=""; ok=1; pcts=""; raw=""; cnt=""; tm=""
+	for p in 1 2 3; do
+		for m in off on; do
+			r=$d/p$p-$m; mkdir -p "$r"
+			if [ $m = on ]; then unit-trace start > "$r/trace-start.log" 2>&1 || { ok=0; faults="$faults\"pair $p: capture did not start\","; }; fi
+			inject_and_stamp "$r" 150 10 || { ok=0; faults="$faults\"pair $p $m: synthetic input device not created\","; }
+			if [ $m = on ]; then
+				UNIT_TRACE_BUDGET=4194304 unit-trace stop "$r/trace" > /dev/null 2>&1 || { ok=0; faults="$faults\"pair $p: capture did not stop\","; }
+				unit-trace verify "$r/trace" > "$r/trace.verify" 2>&1 || { ok=0; faults="$faults\"pair $p: exported trace failed verification\","; }
+				tm="$tm\"p$p\":$(cat "$r/trace.meta" 2>/dev/null || echo '{}'),"
+				raw="$raw\"H03/p$p-on/trace\",\"H03/p$p-on/trace.meta\",\"H03/p$p-on/trace.verify\","
+			fi
+			c=$(unit-pair "$r/inject" "$r/stamp" "$r/delta" 2>/dev/null || echo '{}'); echo "$c" > "$r/counts"
+			[ "$(counts_ok "$c" 150)" = 1 ] || { ok=0; faults="$faults\"pair $p $m: counts outside the pass rule\","; }
+			cnt="$cnt\"p$p-$m\":$c,"
+			raw="$raw\"H03/p$p-$m/inject\",\"H03/p$p-$m/stamp\",\"H03/p$p-$m/delta.read\","
+		done
+		mo=$(json_num "$(unit-stats < "$d/p$p-off/delta.read" 2>/dev/null)" median)
+		mn=$(json_num "$(unit-stats < "$d/p$p-on/delta.read" 2>/dev/null)" median)
+		[ -n "$mo" ] && [ -n "$mn" ] && pcts="$pcts $(awk -v a="$mo" -v b="$mn" 'BEGIN { if (a > 0) printf "%.2f", (b - a) / a * 100 }')"
+	done
+	cat "$d"/p*-off/delta.read > "$d/off.delta.read" 2>/dev/null; cat "$d"/p*-on/delta.read > "$d/on.delta.read" 2>/dev/null
+	so=$(unit-stats < "$d/off.delta.read"); sn=$(unit-stats < "$d/on.delta.read")
+	pv=$(echo $pcts | tr ' ' '\n' | sort -n | awk '{ v[NR] = $1 } END { if (NR) printf "%s", v[int((NR + 1) / 2)] }')
+	pmin=$(echo $pcts | tr ' ' '\n' | sort -n | head -n 1); pmax=$(echo $pcts | tr ' ' '\n' | sort -n | tail -n 1)
+	pj=$(echo $pcts | sed 's/ /,/g')
+	m=$(metric "change in median read latency with tracing on (median of three pairs)" "$pv" "%" 5 "os.unit D-06 Limits r0.3, D06-29 candidate" "" "$ok")
+	note_meas "$ok"
+	record "$d/H03.json" H03 "Instrumentation overhead (PA08)" "measurement" "$(scenario_status "$ok")" "$W" \
+		"{\"read_latency_us_tracing_reduced\":$so,\"read_latency_us_tracing_on\":$sn,\"change_pct_by_pair\":[$pj]}" "{${cnt%,}}" \
+		"$m" "[${faults%,}]" "[${raw%,}]" "{\"tools\":\"unit-trace, unit-inject, unit-evstamp\",\"trace\":{${tm%,}}}" \
+		"Three alternating pairs: change by pair ranged ${pmin:-?}% to ${pmax:-?}%; the stated value is their median. Each pair compares medians of 150 reads with 1 microsecond timestamp resolution. Emulation timing; the limit applies to the development configuration"
 fi
 
 if want H04; then
 	REC_START=$(utc); d=$WS/H04; mkdir -p "$d"
-	f=""; ok=1
-	mkdir -p /root && echo "unit canary $RUN" > /root/unit-canary; before=$(sha256sum /root/unit-canary | cut -d' ' -f1)
+	W=$(workload H04-W r2 '{"load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","outside_targets":["/root","workspace parent","link to /root"]}')
+	T=/sys/kernel/tracing; f=""; ok=1
+	# Files outside the workspace, before. System logging (/tmp/messages) is excluded and named.
+	snap() { for r in / /tmp /run; do find "$r" -xdev \( -type f -o -type l \) -exec ls -ln --full-time {} + 2>/dev/null; done | grep -v " $BASE" | grep -v ' /tmp/messages' | sort; }
+	snap > "$d/files.before"
+	# 1. Allow list: an event outside it is refused.
 	if unit-trace start syscalls:sys_enter_write > "$d/refused.log" 2>&1; then ok=0; f="$f\"event outside the allow list accepted\","; unit-trace stop "$d/discard" > /dev/null 2>&1; fi
-	unit-trace start > /dev/null 2>&1 || { ok=0; f="$f\"capture did not start\","; }
+	# 2. Other events disabled: leave one on, then start; only the requested events may be enabled.
+	lo=$T/events/sched/sched_process_fork/enable
+	[ -w "$lo" ] && echo 1 > "$lo"
+	unit-trace start > "$d/start.log" 2>&1 || { ok=0; f="$f\"capture did not start\","; }
+	sort "$T/set_event" > "$d/set_event.during"
+	grep -q sched_process_fork "$d/set_event.during" && { ok=0; f="$f\"event left on before start still enabled\","; }
 	i=0; while [ $i -lt 300 ]; do ls -R /usr > /dev/null 2>&1; i=$((i + 1)); done
 	UNIT_TRACE_BUDGET=32768 unit-trace stop "$d/trace" > /dev/null 2>&1 || { ok=0; f="$f\"capture did not stop\","; }
 	meta=$(cat "$d/trace.meta" 2>/dev/null || echo '{}')
 	size=$(wc -c < "$d/trace" 2>/dev/null | tr -d ' '); size=${size:-0}
+	# 3. Storage budget.
 	[ "$size" -le 32768 ] || { ok=0; f="$f\"trace larger than its budget\","; }
 	echo "$meta" | grep -q '"truncated":true' || { ok=0; f="$f\"budget stop not exercised: trace smaller than the budget\","; }
+	# 4. Exported events and fields: only enabled, allow-listed events with permitted fields.
+	unit-trace verify "$d/trace" > "$d/trace.verify" 2>&1 || { ok=0; f="$f\"exported trace failed verification\","; }
+	grep -q '"records":0' "$d/trace.verify" && { ok=0; f="$f\"exported trace holds no records to verify\","; }
+	# 5. The verifier itself rejects a disallowed event and a disallowed field.
+	cp "$d/trace.meta" "$d/selftest.meta"
+	printf '%s\n' '   sh-9 [000] .... 1.0: sys_enter_write: fd=1 buf=0x1 count=5' '   sh-9 [000] .... 1.1: irq_handler_entry: irq=1 name=x data=1' > "$d/selftest"
+	unit-trace verify "$d/selftest" > "$d/selftest.verify" 2>&1 && { ok=0; f="$f\"verifier accepted a disallowed event and field\","; }
+	# 6. Storage-skip path: nothing written when free space is short.
 	unit-trace start > /dev/null 2>&1; UNIT_TRACE_RESERVE_KB=1000000000 unit-trace stop "$d/skipped" > /dev/null 2>&1
 	{ [ ! -e "$d/skipped" ] && grep -q 'skipped: storage budget' "$d/skipped.meta"; } || { ok=0; f="$f\"storage-skip path wrote a trace\","; }
-	after=$(sha256sum /root/unit-canary | cut -d' ' -f1)
-	[ "$before" = "$after" ] || { ok=0; f="$f\"file outside the workspace changed\","; }
-	rm -f /root/unit-canary
+	# 7. Output confined to the workspace: every tool refuses targets outside it; none are created.
+	ln -s /root/unit-h04-link "$d/link" 2>/dev/null || { ok=0; f="$f\"link test could not create its link in the workspace\","; }
+	unit-trace stop /root/unit-h04-trace > "$d/outside.log" 2>&1 && { ok=0; f="$f\"unit-trace wrote to /root\","; }
+	unit-trace stop "$d/../../unit-h04-escape" >> "$d/outside.log" 2>&1 && { ok=0; f="$f\"unit-trace wrote outside the run workspace\","; }
+	[ -L "$d/link" ] && unit-trace stop "$d/link" >> "$d/outside.log" 2>&1 && { ok=0; f="$f\"unit-trace followed a link out of the workspace\","; }
+	unit-evstamp --dev /dev/null --out /root/unit-h04-stamp >> "$d/outside.log" 2>&1 && { ok=0; f="$f\"unit-evstamp accepted /root\","; }
+	unit-inject --out /root/unit-h04-inject --count 1 >> "$d/outside.log" 2>&1 && { ok=0; f="$f\"unit-inject accepted /root\","; }
+	for x in /root/unit-h04-trace /root/unit-h04-link /root/unit-h04-stamp /root/unit-h04-inject "$BASE/unit-h04-escape"; do
+		[ -e "$x" ] && { ok=0; f="$f\"$x created\","; }
+	done
+	rm -f "$d/link"
+	# 8. No file outside the workspace created or changed during the scenario.
+	snap > "$d/files.after"
+	diff "$d/files.before" "$d/files.after" > "$d/files.diff" 2>&1
+	changed=$(grep -E '^[+-]' "$d/files.diff" | grep -vcE '^(\+\+\+|---)( |$)')
+	[ "$changed" -eq 0 ] || { ok=0; f="$f\"$changed file entries outside the workspace changed (see H04/files.diff)\","; }
+	ver=$(cat "$d/trace.verify" 2>/dev/null); ver=${ver:-'{}'}
 	faults="[${f%,}]"
 	[ "$ok" = 1 ] && st="Harness check passed" || st="Harness check failed"
 	note_check "$st"
-	record "$d/H04.json" H04 "Bounded capture (PA08)" "harness check" "$st" "300 directory walks under tracing; 32 KiB budget" \
-		"{\"written_bytes\":$size}" "{\"trace\":$meta}" "" "$faults" '["H04/trace","H04/trace.meta","H04/skipped.meta"]' \
-		'{"tools":"unit-trace","allow_list":"scheduling, interrupt, display-timing and power events only"}'
+	record "$d/H04.json" H04 "Bounded, isolated capture (PA08)" "harness check" "$st" "$W" \
+		"{\"written_bytes\":$size,\"files_outside_workspace_changed\":$changed}" "{\"trace\":$meta,\"verification\":$ver,\"enabled_during_capture\":\"$(tr '\n' ' ' < "$d/set_event.during")\"}" "" "$faults" \
+		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest.verify","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
+		'{"tools":"unit-trace, unit-evstamp, unit-inject","allow_list":"scheduling, interrupt, display-timing and power events only","file_check":"listing of files on the root, /tmp and /run file systems before and after, excluding the workspace and the system log /tmp/messages"}' \
+		"Functional checks only, with exact pass rules; no measurement uncertainty applies. The file check compares names, sizes and modification times, to one second, which detects any creation or removal and any rewrite that changes size or modification time"
 fi
 
 sync
-echo "UNIT-HARNESS: DONE checks_passed=$CHK_PASS checks_failed=$CHK_FAIL measurements=$MEAS"
-[ "$CHK_FAIL" -eq 0 ] && echo "UNIT-HARNESS: PASS" || echo "UNIT-HARNESS: FAIL"
+echo "UNIT-HARNESS: DONE checks_passed=$CHK_PASS checks_failed=$CHK_FAIL functional_failures=$FUNC_FAIL measurements=$MEAS"
+[ "$CHK_FAIL" -eq 0 ] && [ "$FUNC_FAIL" -eq 0 ] && echo "UNIT-HARNESS: PASS" || echo "UNIT-HARNESS: FAIL"
 [ "$BASE" = /mnt/results ] && umount /mnt/results 2>/dev/null
-[ "$CHK_FAIL" -eq 0 ]
+[ "$CHK_FAIL" -eq 0 ] && [ "$FUNC_FAIL" -eq 0 ]

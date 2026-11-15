@@ -58,21 +58,26 @@ os.unit D-06 Limits (E1: input reaches the Unit OS). It is for development and t
 |---|---|
 | `unit-evstamp` | Records the kernel timestamp (E1) and read time of each key-down or touch contact. Never records key codes, values or coordinates, so PINs and typed text cannot appear in a trace. Bounded by event count and bytes. |
 | `unit-inject` | Synthetic key presses through uinput, with the injection time of each, to check the timestamp chain. |
-| `unit-trace` | Kernel event capture with a per-CPU ring-buffer size, a storage budget for the file written, and a free-space check before writing. Accepts only allow-listed scheduling, interrupt, display-timing and power events. |
+| `unit-trace` | Kernel event capture with a per-CPU ring-buffer size, a storage budget for the file written (cut at a record boundary), and a free-space check before writing. Accepts only allow-listed scheduling, interrupt, display-timing and power events; disables every other event before starting and confirms that exactly the requested events are on. `unit-trace verify` checks that an exported trace holds only enabled, allow-listed events with their permitted fields. |
 | `unit-stats` | Count, median, p95 (nearest rank), maximum and mean. No samples gives `n: 0`, recorded as not assessed. |
 | `unit-pair` | Pairs injected and recorded events: lost, reordered, and timestamps outside the injection-to-read window. |
 | `unit-harness` | Runs the scenarios below and writes one JSON result record per scenario with the fields PA06 lists. |
 
-Each metric carries its target, provenance and approval reference. Following PA07, a metric is *Not assessed* when the
-measurement, the target or the target's approval is missing, and fails on any functional fault whatever its timing.
-Until the D-06 limits are approved, every measurement is recorded as not assessed.
+Every tool writes only inside the run's workspace (`UNIT_WORKSPACE`): an output path that resolves outside it, or is a
+link, is refused and nothing is written. Each result record also holds the booted kernel and disk image hashes (computed
+by the host before boot; the disk runs in snapshot mode), a pinned workload identifier and revision, and an uncertainty
+statement.
+
+Each metric carries its target, provenance and approval reference. Following PA07, a functional failure is reported
+first and fails the scenario and the run, whatever the timing. A valid measurement is *Not assessed* when the target or
+its approval is missing. Until the D-06 limits are approved, every valid measurement is recorded as not assessed.
 
 | Scenario | Kind | What it shows |
 |---|---|---|
 | H01 Input timestamp chain | Harness check | 200 synthetic presses: none lost or reordered; every E1 timestamp between injection and read; no key codes recorded |
 | H02 Start-up stages | Measurement | Kernel start to init and to harness ready (emulation boots the kernel directly; D06-20 starts at the boot loader) |
-| H03 Instrumentation overhead | Measurement | Change in median input read latency with tracing on (method of D06-29) |
-| H04 Bounded capture | Harness check | Trace stops at its storage budget; nothing written when free space is short; events outside the allow list refused; files outside the workspace untouched |
+| H03 Instrumentation overhead | Measurement | Change in median input read latency with tracing on, three alternating pairs, with the spread (method of D06-29) |
+| H04 Bounded, isolated capture | Harness check | Events outside the allow list refused; an event left on beforehand is disabled; the exported trace holds only enabled events and permitted fields (and the verifier rejects a planted bad record); trace stops at its storage budget; nothing written when free space is short; every tool refuses outputs in /root, above the workspace or through a link; no file outside the workspace created or changed |
 
 Display-timing events (E2, vertical blank) are captured when a display stack presents frames; they are checked on the
 development configuration, as emulation has no Unit shell yet.

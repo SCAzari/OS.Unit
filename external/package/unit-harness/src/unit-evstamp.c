@@ -11,7 +11,8 @@
  * never written, so typed PINs, passwords and dictation cannot appear in a trace.
  *
  * Bounds (PA08): stops after --max events or when the output reaches --budget
- * bytes, and reports which limit stopped it. Never writes outside its output file.
+ * bytes, and reports which limit stopped it. Writes only its output file, which must lie
+ * inside UNIT_WORKSPACE and is not opened through a link.
  *
  * Usage: unit-evstamp --dev /dev/input/eventN --out FILE [--max N] [--budget BYTES]
  *        [--timeout-ms MS]
@@ -19,6 +20,7 @@
  */
 #define _GNU_SOURCE
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <linux/input.h>
 #include <poll.h>
@@ -32,6 +34,24 @@
 
 static volatile sig_atomic_t stop;
 static void on_signal(int s) { (void)s; stop = 1; }
+
+/* Workspace boundary (PA08): the output file's directory must resolve inside UNIT_WORKSPACE
+ * (default /var/lib/unit-test/results) and the file is opened without following links. */
+static FILE *open_in_workspace(const char *out)
+{
+	const char *ws = getenv("UNIT_WORKSPACE");
+	if (!ws || !*ws) ws = "/var/lib/unit-test/results";
+	char wr[PATH_MAX], dr[PATH_MAX], dir[PATH_MAX];
+	snprintf(dir, sizeof dir, "%s", out);
+	char *slash = strrchr(dir, '/');
+	if (slash == dir) dir[1] = 0; else if (slash) *slash = 0; else snprintf(dir, sizeof dir, ".");
+	if (!realpath(ws, wr) || !realpath(dir, dr)) { errno = ENOENT; return NULL; }
+	size_t n = strlen(wr);
+	if (strncmp(dr, wr, n) != 0 || (dr[n] != '/' && dr[n] != 0)) { errno = EACCES; return NULL; }
+	int fd = open(out, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+	if (fd < 0) return NULL;
+	return fdopen(fd, "w");
+}
 
 static long long now_ns(void)
 {
@@ -56,12 +76,12 @@ int main(int argc, char **argv)
 		fprintf(stderr, "usage: unit-evstamp --dev DEV --out FILE [--max N] [--budget BYTES] [--timeout-ms MS]\n");
 		return 2;
 	}
+	FILE *f = open_in_workspace(out);
+	if (!f) { perror("unit-evstamp: output outside the workspace or not writable"); return 1; }
 	int fd = open(dev, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) { perror("unit-evstamp: open device"); return 1; }
 	int clk = CLOCK_MONOTONIC;
 	if (ioctl(fd, EVIOCSCLOCKID, &clk) < 0) { perror("unit-evstamp: EVIOCSCLOCKID"); return 1; }
-	FILE *f = fopen(out, "w");
-	if (!f) { perror("unit-evstamp: open output"); return 1; }
 	signal(SIGTERM, on_signal);
 	signal(SIGINT, on_signal);
 	printf("READY\n");

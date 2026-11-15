@@ -1,42 +1,108 @@
 #!/bin/sh
 # unit-trace: bounded kernel trace capture (Performance procedure PA08).
 #
-#   unit-trace start [EVENT...]   clear and size the ring buffer, enable the events, start
+#   unit-trace start [EVENT...]   disable every trace event, clear and size the ring buffer,
+#                                 enable only the requested allow-listed events, confirm that
+#                                 exactly those are enabled, then start
 #   unit-trace stop OUT_FILE      stop, write at most UNIT_TRACE_BUDGET bytes to OUT_FILE,
 #                                 write OUT_FILE.meta (JSON), disable the events
+#   unit-trace verify FILE        check that every record in FILE is an allow-listed event that
+#                                 was enabled and carries only that event's permitted fields;
+#                                 prints JSON and exits non-zero on any finding
+#
+# Workspace: OUT_FILE must resolve inside UNIT_WORKSPACE (default /var/lib/unit-test/results),
+# must not be a symbolic link, and its directory must already exist. The tool's state file is
+# kept in the workspace too, so nothing outside the workspace is written.
 #
 # Bounds: the kernel ring buffer is UNIT_TRACE_BUFFER_KB per CPU (default 1024); the file
-# written is at most UNIT_TRACE_BUDGET bytes (default 4 MiB). Before writing, free space
-# on the output filesystem must exceed the budget plus UNIT_TRACE_RESERVE_KB (default 65536);
-# otherwise nothing is written and the meta file records "skipped: storage budget".
-# Nothing outside OUT_FILE and OUT_FILE.meta is written or removed.
+# written is at most UNIT_TRACE_BUDGET bytes (default 4 MiB), cut at a record boundary. Before
+# writing, free space on the output filesystem must exceed the budget plus UNIT_TRACE_RESERVE_KB
+# (default 65536); otherwise nothing is written and the meta file records "skipped: storage budget".
 #
-# Privacy: only events on the allow list are accepted. It holds scheduling, interrupt,
-# display-timing and power events, which carry no file content, text, key codes or
-# system-call arguments.
+# Privacy: only allow-listed events are accepted. They carry scheduling, interrupt,
+# display-timing and power information: process names and numbers, interrupt numbers and
+# device names, counters and states. No file content, text, key codes or system-call arguments.
 set -eu
 T=${TRACEFS:-/sys/kernel/tracing}
 BUF=${UNIT_TRACE_BUFFER_KB:-1024}
 BUDGET=${UNIT_TRACE_BUDGET:-4194304}
 RESERVE=${UNIT_TRACE_RESERVE_KB:-65536}
+WS=${UNIT_WORKSPACE:-/var/lib/unit-test/results}
 ALLOW="sched:sched_switch sched:sched_wakeup irq:irq_handler_entry irq:irq_handler_exit \
 drm:drm_vblank_event drm:drm_vblank_event_queued drm:drm_vblank_event_delivered \
 power:cpu_idle power:cpu_frequency"
 DEFAULT="sched:sched_switch irq:irq_handler_entry irq:irq_handler_exit drm:drm_vblank_event"
-STATE=${UNIT_TRACE_STATE:-/run/unit-trace.events}
+# Permitted fields per event, as printed in the trace text.
+FIELDS="sched_switch=prev_comm,prev_pid,prev_prio,prev_state,next_comm,next_pid,next_prio \
+sched_wakeup=comm,pid,prio,target_cpu \
+irq_handler_entry=irq,name irq_handler_exit=irq,ret \
+drm_vblank_event=crtc,seq,time,high-prec drm_vblank_event_queued=file,crtc,seq \
+drm_vblank_event_delivered=file,crtc,seq \
+cpu_idle=state,cpu_id cpu_frequency=state,cpu_id"
 
 die() { echo "unit-trace: $*" >&2; exit 1; }
 allowed() { for a in $ALLOW; do [ "$a" = "$1" ] && return 0; done; return 1; }
 evdir() { echo "$T/events/${1%%:*}/${1#*:}"; }
 
+# inside PATH: true when PATH's directory resolves inside the workspace and PATH is not a link.
+inside() {
+	w=$(realpath "$WS" 2>/dev/null) || return 1
+	d=$(realpath "$(dirname "$1")" 2>/dev/null) || return 1
+	[ -L "$1" ] && return 1
+	case "$d/" in "$w"/*) return 0 ;; esac
+	return 1
+}
+STATE="$WS/.unit-trace.state"
+
+cmd=${1:-}; [ $# -gt 0 ] && shift
+
+if [ "$cmd" = verify ]; then
+	f=${1:?usage: unit-trace verify FILE}
+	en=$(cat "$f.meta" 2>/dev/null | sed -n 's/.*"events":\[\([^]]*\)\].*/\1/p' | tr -d '"' | tr ',' ' ')
+	[ -n "$en" ] || en=$(cat "$STATE" 2>/dev/null || true)
+	awk -v enabled="$en" -v fields="$FIELDS" '
+	BEGIN {
+		n = split(enabled, e, " "); for (i = 1; i <= n; i++) { sub(/^[^:]*:/, "", e[i]); en[e[i]] = 1 }
+		n = split(fields, fs, " ")
+		for (i = 1; i <= n; i++) { split(fs[i], kv, "="); m = split(kv[2], fl, ","); for (j = 1; j <= m; j++) ok[kv[1] SUBSEP fl[j]] = 1 }
+	}
+	/^#/ || /^[ \t]*$/ { next }
+	{
+		lines++
+		if (!match($0, /: [a-z_]+: /)) { bad_lines++; next }
+		ev = substr($0, RSTART + 2, RLENGTH - 4); rest = substr($0, RSTART + RLENGTH)
+		count[ev]++
+		if (!(ev in en)) { bad_events++; badev[ev] = 1; next }
+		k = split(rest, tok, /[ ,]+/)
+		for (j = 1; j <= k; j++) {
+			if (tok[j] !~ /^[a-z_-]+=/) continue
+			name = tok[j]; sub(/=.*/, "", name)
+			if (!((ev SUBSEP name) in ok)) { bad_fields++; badf[ev "." name] = 1 }
+		}
+	}
+	END {
+		printf "{\"records\":%d,\"events\":{", lines; s = ""
+		for (x in count) { printf "%s\"%s\":%d", s, x, count[x]; s = "," }
+		printf "},\"unexpected_events\":["; s = ""; for (x in badev) { printf "%s\"%s\"", s, x; s = "," }
+		printf "],\"unexpected_fields\":["; s = ""; for (x in badf) { printf "%s\"%s\"", s, x; s = "," }
+		printf "],\"unparsed_records\":%d}\n", bad_lines + 0
+		exit (bad_events + bad_fields + bad_lines > 0) ? 1 : 0
+	}' "$f"
+	exit $?
+fi
+
 if [ ! -e "$T/tracing_on" ] && [ "$T" = /sys/kernel/tracing ]; then mount -t tracefs nodev "$T" 2>/dev/null || true; fi
 [ -e "$T/tracing_on" ] || die "tracefs not found at $T"
-cmd=${1:-}; [ $# -gt 0 ] && shift
+[ -d "$WS" ] || die "workspace $WS does not exist"
 case "$cmd" in
 start)
 	[ $# -eq 0 ] && set -- $DEFAULT
 	for e in "$@"; do allowed "$e" || die "event $e is not on the allow list"; done
 	echo 0 > "$T/tracing_on"
+	# Disable everything first, so that events left on by anything else are not captured.
+	echo 0 > "$T/events/enable"
+	: > "$T/set_event"
+	[ -w "$T/current_tracer" ] && echo nop > "$T/current_tracer"
 	: > "$T/trace"
 	echo "$BUF" > "$T/buffer_size_kb"
 	echo mono > "$T/trace_clock"
@@ -46,6 +112,10 @@ start)
 		if [ -w "$d/enable" ]; then echo 1 > "$d/enable"; enabled="$enabled $e"
 		else echo "unit-trace: event $e not available in this kernel" >&2; fi
 	done
+	# Confirm that exactly the requested events are enabled before tracing starts.
+	want=$(echo $enabled | tr ' ' '\n' | sort | tr '\n' ' ')
+	have=$(sort "$T/set_event" | tr '\n' ' ')
+	[ "$want" = "$have" ] || { echo 0 > "$T/events/enable"; die "enabled events differ from the request (enabled: $have)"; }
 	echo "$enabled" > "$STATE"
 	echo 1 > "$T/tracing_on"
 	echo "unit-trace: started:$enabled"
@@ -54,6 +124,8 @@ stop)
 	out=${1:?usage: unit-trace stop OUT_FILE}
 	echo 0 > "$T/tracing_on"
 	enabled=$(cat "$STATE" 2>/dev/null || true)
+	disable() { for e in $enabled; do d=$(evdir "$e"); [ -w "$d/enable" ] && echo 0 > "$d/enable"; done; : > "$T/trace"; rm -f "$STATE"; }
+	inside "$out" || { disable; die "output $out is outside the workspace $WS or is a link; nothing written"; }
 	dir=$(dirname "$out")
 	avail=$(df -k "$dir" | awk 'NR == 2 { print $4 }')
 	need=$(( BUDGET / 1024 + RESERVE ))
@@ -65,19 +137,23 @@ stop)
 	if [ "${avail:-0}" -lt "$need" ]; then
 		written=0; truncated=false; note="skipped: storage budget (free ${avail} KiB, need ${need} KiB)"
 	else
-		head -c "$BUDGET" "$T/trace" > "$out"
-		written=$(wc -c < "$out" | tr -d ' ')
 		total=$(wc -c < "$T/trace" | tr -d ' ')
-		if [ "$total" -gt "$BUDGET" ]; then truncated=true; note="stopped at the storage budget"; else truncated=false; note="complete"; fi
+		if [ "$total" -gt "$BUDGET" ]; then
+			# Cut at the budget, then drop the partial last record.
+			head -c "$BUDGET" "$T/trace" | sed '$d' > "$out"
+			truncated=true; note="stopped at the storage budget"
+		else
+			cat "$T/trace" > "$out"; truncated=false; note="complete"
+		fi
+		written=$(wc -c < "$out" | tr -d ' ')
 	fi
-	for e in $enabled; do d=$(evdir "$e"); [ -w "$d/enable" ] && echo 0 > "$d/enable"; done
-	: > "$T/trace"
+	disable
 	ev=$(echo $enabled | sed 's/ /","/g')
 	printf '{"events":["%s"],"buffer_kb_per_cpu":%s,"budget_bytes":%s,"written_bytes":%s,"truncated":%s,"ring_overrun_events":%s,"note":"%s"}\n' \
 		"$ev" "$BUF" "$BUDGET" "$written" "$truncated" "$overrun" "$note" > "$out.meta"
 	cat "$out.meta"
 	;;
 *)
-	die "usage: unit-trace start [EVENT...] | unit-trace stop OUT_FILE"
+	die "usage: unit-trace start [EVENT...] | unit-trace stop OUT_FILE | unit-trace verify FILE"
 	;;
 esac

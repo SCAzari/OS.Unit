@@ -5,8 +5,13 @@
 # (read minus injection, microseconds), and prints JSON counts:
 # {"injected":..,"recorded":..,"lost":..,"reordered":..,"out_of_window":..}
 # An event is out of window when its kernel timestamp is before its injection or after its read.
+# The outputs must resolve inside UNIT_WORKSPACE (default /var/lib/unit-test/results) and must
+# not be links (Performance procedure PA08).
 set -eu
 inj=$1; st=$2; out=$3
+w=$(realpath "${UNIT_WORKSPACE:-/var/lib/unit-test/results}") && d=$(realpath "$(dirname "$out")") || { echo "unit-pair: workspace or output directory missing" >&2; exit 1; }
+case "$d/" in "$w"/*) ;; *) echo "unit-pair: output $out is outside the workspace" >&2; exit 1 ;; esac
+for x in "$out.kernel" "$out.read"; do [ -L "$x" ] && { echo "unit-pair: $x is a link" >&2; exit 1; }; done
 awk -v OK="$out.kernel" -v OR="$out.read" '
 FNR == NR { t[$1] = $2; ni++; next }
 {

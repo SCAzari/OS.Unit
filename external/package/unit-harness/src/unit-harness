@@ -62,7 +62,8 @@ if want H01; then
 		counts=$(unit-pair "$d/inject" "$d/stamp" "$d/delta")
 		ks=$(unit-stats < "$d/delta.kernel"); rs=$(unit-stats < "$d/delta.read")
 		fields=$(awk '{ if (NF != 3) bad++ } END { print bad + 0 }' "$d/stamp")
-		ok=$(echo "$counts" | awk -F'[:,}]' '{ for (i = 1; i < NF; i++) v[$i] = $(i + 1) } END { print (v["\"injected\""] == 200 && v["\"recorded\""] == 200 && v["\"lost\""] == 0 && v["\"reordered\""] == 0 && v["\"out_of_window\""] == 0) ? 1 : 0 }')
+		ok=$(echo "$counts" | tr -d '{}" ' | awk -F'[:,]' '{ for (i = 1; i < NF; i += 2) v[$i] = $(i + 1) } END { print (v["injected"] == 200 && v["recorded"] == 200 && v["lost"] == 0 && v["reordered"] == 0 && v["out_of_window"] == 0) ? 1 : 0 }')
+		[ "$ok" = 1 ] || faults="[\"counts outside the pass rule: $(echo "$counts" | tr -d '{}"')\"]"
 		[ "$fields" -ne 0 ] && { ok=0; faults='["stamp file holds more than seq and two timestamps"]'; }
 	else
 		counts='{}'; ks='{"n":0}'; rs='{"n":0}'; ok=0; faults='["synthetic input device not created"]'

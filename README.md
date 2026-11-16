@@ -58,13 +58,14 @@ os.unit D-06 Limits (E1: input reaches the Unit OS). It is for development and t
 |---|---|
 | `unit-evstamp` | Records the kernel timestamp (E1) and read time of each key-down or touch contact. Never records key codes, values or coordinates, so PINs and typed text cannot appear in a trace. Bounded by event count and bytes. |
 | `unit-inject` | Synthetic key presses through uinput, with the injection time of each, to check the timestamp chain. |
-| `unit-trace` | Kernel event capture with a per-CPU ring-buffer size, a storage budget for the file written (cut at a record boundary), and a free-space check before writing. Accepts only allow-listed scheduling, interrupt, display-timing and power events; disables every other event before starting and confirms that exactly the requested events are on. `unit-trace verify` checks that an exported trace holds only enabled, allow-listed events whose payload consists wholly of that event's permitted fields (each once) and permitted literals; any other payload text is rejected. |
+| `unit-trace` | Kernel event capture with a per-CPU ring-buffer size and a free-space check. Accepts only allow-listed scheduling, interrupt, display-timing and power events; disables every other event before starting and confirms that exactly the requested events are on. On stop, the live buffer is read once: task names and interrupt device names are replaced by fixed labels, every record is verified (enabled event, wholly permitted fields, labels only) and the result is held in memory up to the storage budget. The file is written only if verification passed; a rejected capture leaves only a meta file with counts and event and field names. `unit-trace verify` re-checks an exported file, or records on standard input. |
 | `unit-stats` | Count, median, p95 (nearest rank), maximum and mean. No samples gives `n: 0`, recorded as not assessed. |
 | `unit-pair` | Pairs injected and recorded events: lost, reordered, and timestamps outside the injection-to-read window. |
 | `unit-harness` | Runs the scenarios below and writes one JSON result record per scenario with the fields PA06 lists. |
 
 Every tool writes only inside the run's workspace (`UNIT_WORKSPACE`): an output path that resolves outside it, or is a
-link, is refused and nothing is written. Each result record also holds the booted kernel and disk image hashes (computed
+link, is refused and nothing is written. Before upload, the host removes any trace file whose meta file does not record
+that it passed verification. Each result record also holds the booted kernel and disk image hashes (computed
 by the host before boot; the disk runs in snapshot mode), a pinned workload identifier and revision, and an uncertainty
 statement.
 
@@ -77,7 +78,7 @@ its approval is missing. Until the D-06 limits are approved, every valid measure
 | H01 Input timestamp chain | Harness check | 200 synthetic presses: none lost or reordered; every E1 timestamp between injection and read; no key codes recorded |
 | H02 Start-up stages | Measurement | Kernel start to init and to harness ready (emulation boots the kernel directly; D06-20 starts at the boot loader) |
 | H03 Instrumentation overhead | Measurement | Change in median input read latency with tracing on, three alternating pairs, with the spread (method of D06-29) |
-| H04 Bounded, isolated capture | Harness check | Events outside the allow list refused; an event left on beforehand is disabled; the exported trace holds only enabled events with wholly permitted payloads; the verifier rejects, each for its own reason, a disallowed event, unexplained payload text in an allowed event, and a disallowed field; trace stops at its storage budget; nothing written when free space is short; every tool refuses outputs in /root, above the workspace or through a link; no file outside the workspace created or changed |
+| H04 Bounded, isolated capture | Harness check | Events outside the allow list refused; an event left on beforehand is disabled; the exported trace holds only enabled events with wholly permitted payloads and labels in place of task and device names (the workload's own process name must not appear); the verifier rejects, each for its own reason and from standard input only, a disallowed event, unexplained payload text, a disallowed field, an unlabelled device name and an unlabelled task name; a capture with an event switched on behind the tool is rejected and not written; trace stops at its storage budget; nothing written when free space is short; every tool refuses outputs in /root, above the workspace or through a link; no file outside the workspace created or changed |
 
 Display-timing events (E2, vertical blank) are captured when a display stack presents frames; they are checked on the
 development configuration, as emulation has no Unit shell yet.

@@ -4,26 +4,36 @@
 #   unit-trace start [EVENT...]   disable every trace event, clear and size the ring buffer,
 #                                 enable only the requested allow-listed events, confirm that
 #                                 exactly those are enabled, then start
-#   unit-trace stop OUT_FILE      stop, write at most UNIT_TRACE_BUDGET bytes to OUT_FILE,
-#                                 write OUT_FILE.meta (JSON), disable the events
-#   unit-trace verify FILE        check that every record in FILE is an allow-listed event that
-#                                 was enabled and that its payload consists only of that event's
-#                                 permitted fields (name=value, each once) and permitted literals;
-#                                 any other payload text is rejected. Prints JSON and exits
-#                                 non-zero on any finding
+#   unit-trace stop OUT_FILE      stop; label, verify and bound the trace in memory; write it to
+#                                 OUT_FILE only if verification passed; write OUT_FILE.meta (JSON);
+#                                 disable every event. Exits non-zero if the trace was rejected.
+#   unit-trace verify FILE|-      check an exported trace (or records on stdin, with the events in
+#                                 UNIT_TRACE_EVENTS) without changing it: every record an enabled,
+#                                 allow-listed event; payload wholly permitted fields (each once)
+#                                 and permitted literals; task and device names only labels.
+#                                 Prints JSON (counts and event and field names, never values) and
+#                                 exits non-zero on any finding
 #
 # Workspace: OUT_FILE must resolve inside UNIT_WORKSPACE (default /var/lib/unit-test/results),
 # must not be a symbolic link, and its directory must already exist. The tool's state file is
 # kept in the workspace too, so nothing outside the workspace is written.
 #
+# Export (trace-filter.awk): the live trace buffer is read once. Task names in record headers and
+# in the comm fields, and interrupt device names, are replaced by fixed labels (idle, kworker,
+# ksoftirqd, migration, cpuhp, rcu, the harness tools by name, task; irq). Each record is then
+# verified and the result held in memory up to the byte budget, cut at a record boundary. The file
+# is written only if every record passed; a rejected trace leaves only OUT_FILE.meta, which holds
+# counts and names of event types and fields, never trace content.
+#
 # Bounds: the kernel ring buffer is UNIT_TRACE_BUFFER_KB per CPU (default 1024); the file
-# written is at most UNIT_TRACE_BUDGET bytes (default 4 MiB), cut at a record boundary. Before
-# writing, free space on the output filesystem must exceed the budget plus UNIT_TRACE_RESERVE_KB
-# (default 65536); otherwise nothing is written and the meta file records "skipped: storage budget".
+# written is at most UNIT_TRACE_BUDGET bytes (default 4 MiB). Before writing, free space on the
+# output filesystem must exceed the budget plus UNIT_TRACE_RESERVE_KB (default 65536); otherwise
+# nothing is written and the meta file records "skipped: storage budget".
 #
 # Privacy: only allow-listed events are accepted. They carry scheduling, interrupt,
-# display-timing and power information: process names and numbers, interrupt numbers and
-# device names, counters and states. No file content, text, key codes or system-call arguments.
+# display-timing and power information. After labelling, an exported trace holds process and
+# interrupt numbers, CPU numbers, states, counters and fixed labels: no task or device names,
+# file content, text, key codes or system-call arguments.
 set -eu
 T=${TRACEFS:-/sys/kernel/tracing}
 BUF=${UNIT_TRACE_BUFFER_KB:-1024}
@@ -43,6 +53,7 @@ drm_vblank_event_delivered=file,crtc,seq \
 cpu_idle=state,cpu_id cpu_frequency=state,cpu_id"
 # Permitted literal tokens per event (the separator in sched_switch).
 LITERALS="sched_switch:==>"
+FILTER=${UNIT_TRACE_FILTER:-/usr/lib/unit-harness/trace-filter.awk}
 
 die() { echo "unit-trace: $*" >&2; exit 1; }
 allowed() { for a in $ALLOW; do [ "$a" = "$1" ] && return 0; done; return 1; }
@@ -61,53 +72,12 @@ STATE="$WS/.unit-trace.state"
 cmd=${1:-}; [ $# -gt 0 ] && shift
 
 if [ "$cmd" = verify ]; then
-	f=${1:?usage: unit-trace verify FILE}
-	en=$(cat "$f.meta" 2>/dev/null | sed -n 's/.*"events":\[\([^]]*\)\].*/\1/p' | tr -d '"' | tr ',' ' ')
-	[ -n "$en" ] || en=$(cat "$STATE" 2>/dev/null || true)
-	awk -v enabled="$en" -v fields="$FIELDS" -v literals="$LITERALS" '
-	BEGIN {
-		n = split(enabled, e, " "); for (i = 1; i <= n; i++) { sub(/^[^:]*:/, "", e[i]); en[e[i]] = 1 }
-		n = split(fields, fs, " ")
-		for (i = 1; i <= n; i++) { split(fs[i], kv, "="); m = split(kv[2], fl, ","); for (j = 1; j <= m; j++) ok[kv[1] SUBSEP fl[j]] = 1 }
-		n = split(literals, ls, " ")
-		for (i = 1; i <= n; i++) { split(ls[i], kv, ":"); lit[kv[1] SUBSEP kv[2]] = 1 }
-	}
-	/^#/ || /^[ \t]*$/ { next }
-	{
-		lines++
-		# Header: task-pid, optional tgid, [cpu], flags, timestamp, event name.
-		if (!match($0, /^ *.+-[0-9]+ +(\([ 0-9-]+\) +)?\[[0-9]+\] +[^ ]+ +[0-9]+\.[0-9]+: [a-z_]+: /)) { bad_lines++; next }
-		head = substr($0, 1, RLENGTH); rest = substr($0, RLENGTH + 1)
-		ev = head; sub(/: $/, "", ev); sub(/.*: /, "", ev)
-		count[ev]++
-		if (!(ev in en)) { bad_events++; badev[ev] = 1; next }
-		# Payload: every token must be a permitted field (name=value, each name at most once) or a
-		# permitted literal for this event. Anything else is unexplained content and is rejected.
-		gsub(/, /, " ", rest)
-		k = split(rest, tok, / /); delete seen
-		for (j = 1; j <= k; j++) {
-			t = tok[j]
-			if (t == "") continue
-			if ((ev SUBSEP t) in lit) continue
-			if (t ~ /^[a-z_-]+=[^=]+$/ || t ~ /^[a-z_-]+=$/) {
-				name = t; sub(/=.*/, "", name)
-				if (!((ev SUBSEP name) in ok)) { bad_fields++; badf[ev "." name] = 1; continue }
-				if (name in seen) { bad_tokens++; badt[ev] = 1; continue }
-				seen[name] = 1; continue
-			}
-			bad_tokens++; badt[ev] = 1
-		}
-	}
-	END {
-		printf "{\"records\":%d,\"events\":{", lines; s = ""
-		for (x in count) { printf "%s\"%s\":%d", s, x, count[x]; s = "," }
-		printf "},\"unexpected_events\":["; s = ""; for (x in badev) { printf "%s\"%s\"", s, x; s = "," }
-		printf "],\"unexpected_fields\":["; s = ""; for (x in badf) { printf "%s\"%s\"", s, x; s = "," }
-		printf "],\"unexplained_payload_tokens\":%d,\"events_with_unexplained_payload\":[", bad_tokens + 0; s = ""
-		for (x in badt) { printf "%s\"%s\"", s, x; s = "," }
-		printf "],\"unparsed_records\":%d}\n", bad_lines + 0
-		exit (bad_events + bad_fields + bad_tokens + bad_lines > 0) ? 1 : 0
-	}' "$f"
+	f=${1:?usage: unit-trace verify FILE|-}
+	if [ "$f" = - ]; then en=${UNIT_TRACE_EVENTS:-}; f=/dev/stdin
+	else en=$(sed -n 's/.*"events":\[\([^]]*\)\].*/\1/p' "$f.meta" 2>/dev/null | tr -d '"' | tr ',' ' '); fi
+	[ -n "$en" ] || die "no enabled-event list for $f"
+	set +e
+	awk -v mode=check -v enabled="$en" -v fields="$FIELDS" -v literals="$LITERALS" -f "$FILTER" "$f"
 	exit $?
 fi
 
@@ -144,8 +114,10 @@ stop)
 	out=${1:?usage: unit-trace stop OUT_FILE}
 	echo 0 > "$T/tracing_on"
 	enabled=$(cat "$STATE" 2>/dev/null || true)
-	disable() { for e in $enabled; do d=$(evdir "$e"); [ -w "$d/enable" ] && echo 0 > "$d/enable"; done; : > "$T/trace"; rm -f "$STATE"; }
+	# Disable every event (not only those this tool enabled) and clear the buffer.
+	disable() { echo 0 > "$T/events/enable"; : > "$T/trace"; rm -f "$STATE"; }
 	inside "$out" || { disable; die "output $out is outside the workspace $WS or is a link; nothing written"; }
+	[ -e "$out" ] && rm -f "$out"
 	dir=$(dirname "$out")
 	avail=$(df -k "$dir" | awk 'NR == 2 { print $4 }')
 	need=$(( BUDGET / 1024 + RESERVE ))
@@ -154,24 +126,26 @@ stop)
 		[ -r "$s" ] || continue
 		o=$(awk '/^overrun:/ { print $2 }' "$s"); overrun=$(( overrun + ${o:-0} ))
 	done
+	rc=0
 	if [ "${avail:-0}" -lt "$need" ]; then
-		written=0; truncated=false; note="skipped: storage budget (free ${avail} KiB, need ${need} KiB)"
+		summary='{"verification":"not run","written_bytes":0,"truncated":false}'
+		note="skipped: storage budget (free ${avail} KiB, need ${need} KiB)"
 	else
-		total=$(wc -c < "$T/trace" | tr -d ' ')
-		if [ "$total" -gt "$BUDGET" ]; then
-			# Cut at the budget, then drop the partial last record.
-			head -c "$BUDGET" "$T/trace" | sed '$d' > "$out"
-			truncated=true; note="stopped at the storage budget"
-		else
-			cat "$T/trace" > "$out"; truncated=false; note="complete"
-		fi
-		written=$(wc -c < "$out" | tr -d ' ')
+		set +e
+		summary=$(awk -v mode=export -v enabled="$enabled" -v fields="$FIELDS" -v literals="$LITERALS" \
+			-v budget="$BUDGET" -v out="$out" -f "$FILTER" "$T/trace")
+		rc=$?
+		set -e
+		if [ $rc -ne 0 ]; then rm -f "$out"; note="rejected: verification failed; nothing written"
+		elif echo "$summary" | grep -q '"truncated":true'; then note="stopped at the storage budget"
+		else note="complete"; fi
 	fi
 	disable
 	ev=$(echo $enabled | sed 's/ /","/g')
-	printf '{"events":["%s"],"buffer_kb_per_cpu":%s,"budget_bytes":%s,"written_bytes":%s,"truncated":%s,"ring_overrun_events":%s,"note":"%s"}\n' \
-		"$ev" "$BUF" "$BUDGET" "$written" "$truncated" "$overrun" "$note" > "$out.meta"
+	printf '{"events":["%s"],"buffer_kb_per_cpu":%s,"budget_bytes":%s,"ring_overrun_events":%s,"labels":"task and device names replaced by fixed labels before writing","note":"%s","export":%s}\n' \
+		"$ev" "$BUF" "$BUDGET" "$overrun" "$note" "$summary" > "$out.meta"
 	cat "$out.meta"
+	exit $rc
 	;;
 *)
 	die "usage: unit-trace start [EVENT...] | unit-trace stop OUT_FILE | unit-trace verify FILE"

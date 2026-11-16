@@ -11,7 +11,7 @@ unit-inject: unit-inject.c
 install: all
 	install -d $(DESTDIR)/usr/bin $(DESTDIR)/usr/lib/unit-harness $(DESTDIR)/etc/init.d
 	install -m 0755 $(BIN) $(SCRIPTS) $(DESTDIR)/usr/bin/
-	install -m 0644 lib.sh $(DESTDIR)/usr/lib/unit-harness/lib.sh
+	install -m 0644 lib.sh trace-filter.awk $(DESTDIR)/usr/lib/unit-harness/
 	install -m 0755 S98unit-harness $(DESTDIR)/etc/init.d/S98unit-harness
 clean:
 	rm -f $(BIN)

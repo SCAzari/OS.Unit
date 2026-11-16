@@ -149,7 +149,7 @@ fi
 
 if want H04; then
 	REC_START=$(utc); d=$WS/H04; mkdir -p "$d"
-	W=$(workload H04-W r2 '{"load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","outside_targets":["/root","workspace parent","link to /root"]}')
+	W=$(workload H04-W r3 '{"load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","outside_targets":["/root","workspace parent","link to /root"]}')
 	T=/sys/kernel/tracing; f=""; ok=1
 	# Files outside the workspace, before. System logging (/tmp/messages) is excluded and named.
 	snap() { for r in / /tmp /run; do find "$r" -xdev \( -type f -o -type l \) -exec ls -ln --full-time {} + 2>/dev/null; done | grep -v " $BASE" | grep -v ' /tmp/messages' | sort; }
@@ -169,13 +169,20 @@ if want H04; then
 	# 3. Storage budget.
 	[ "$size" -le 32768 ] || { ok=0; f="$f\"trace larger than its budget\","; }
 	echo "$meta" | grep -q '"truncated":true' || { ok=0; f="$f\"budget stop not exercised: trace smaller than the budget\","; }
-	# 4. Exported events and fields: only enabled, allow-listed events with permitted fields.
+	# 4. Exported trace: only enabled, allow-listed events whose payload is wholly permitted fields.
 	unit-trace verify "$d/trace" > "$d/trace.verify" 2>&1 || { ok=0; f="$f\"exported trace failed verification\","; }
 	grep -q '"records":0' "$d/trace.verify" && { ok=0; f="$f\"exported trace holds no records to verify\","; }
-	# 5. The verifier itself rejects a disallowed event and a disallowed field.
-	cp "$d/trace.meta" "$d/selftest.meta"
-	printf '%s\n' '   sh-9 [000] .... 1.0: sys_enter_write: fd=1 buf=0x1 count=5' '   sh-9 [000] .... 1.1: irq_handler_entry: irq=1 name=x data=1' > "$d/selftest"
-	unit-trace verify "$d/selftest" > "$d/selftest.verify" 2>&1 && { ok=0; f="$f\"verifier accepted a disallowed event and field\","; }
+	# 5. The verifier rejects each kind of bad record on its own, for the right reason: a
+	#    disallowed event; unexplained payload text in an allowed event; a disallowed field.
+	vt() { # vt NAME RECORD REASON_PATTERN
+		cp "$d/trace.meta" "$d/selftest-$1.meta"
+		printf '%s\n' "$2" > "$d/selftest-$1"
+		if unit-trace verify "$d/selftest-$1" > "$d/selftest-$1.verify" 2>&1; then ok=0; f="$f\"verifier accepted the $1 record\","
+		elif ! grep -q "$3" "$d/selftest-$1.verify"; then ok=0; f="$f\"verifier rejected the $1 record for another reason\","; fi
+	}
+	vt event '              sh-9      [000] ....     1.0: sys_enter_write: fd=1 buf=0x1 count=5' '"unexpected_events":\["sys_enter_write"\],"unexpected_fields":\[\],"unexplained_payload_tokens":0'
+	vt payload '              sh-9      [000] d.h1.    1.1: irq_handler_entry: irq=1 name=x typed text 1234' '"unexpected_events":\[\],"unexpected_fields":\[\],"unexplained_payload_tokens":3'
+	vt field '              sh-9      [000] d.h1.    1.2: irq_handler_entry: irq=1 name=x data=1' '"unexpected_events":\[\],"unexpected_fields":\["irq_handler_entry.data"\],"unexplained_payload_tokens":0'
 	# 6. Storage-skip path: nothing written when free space is short.
 	unit-trace start > /dev/null 2>&1; UNIT_TRACE_RESERVE_KB=1000000000 unit-trace stop "$d/skipped" > /dev/null 2>&1
 	{ [ ! -e "$d/skipped" ] && grep -q 'skipped: storage budget' "$d/skipped.meta"; } || { ok=0; f="$f\"storage-skip path wrote a trace\","; }
@@ -201,7 +208,7 @@ if want H04; then
 	note_check "$st"
 	record "$d/H04.json" H04 "Bounded, isolated capture (PA08)" "harness check" "$st" "$W" \
 		"{\"written_bytes\":$size,\"files_outside_workspace_changed\":$changed}" "{\"trace\":$meta,\"verification\":$ver,\"enabled_during_capture\":\"$(tr '\n' ' ' < "$d/set_event.during")\"}" "" "$faults" \
-		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest.verify","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
+		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest-event.verify","H04/selftest-payload.verify","H04/selftest-field.verify","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
 		'{"tools":"unit-trace, unit-evstamp, unit-inject","allow_list":"scheduling, interrupt, display-timing and power events only","file_check":"listing of files on the root, /tmp and /run file systems before and after, excluding the workspace and the system log /tmp/messages"}' \
 		"Functional checks only, with exact pass rules; no measurement uncertainty applies. The file check compares names, sizes and modification times, to one second, which detects any creation or removal and any rewrite that changes size or modification time"
 fi

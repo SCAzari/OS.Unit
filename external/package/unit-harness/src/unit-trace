@@ -7,6 +7,9 @@
 #   unit-trace stop OUT_FILE      stop; label, verify and bound the trace in memory; write it to
 #                                 OUT_FILE only if verification passed; write OUT_FILE.meta (JSON);
 #                                 disable every event. Exits non-zero if the trace was rejected.
+#   unit-trace export - OUT_FILE  run the stop-time export path (labels, verification, budget,
+#                                 write only if passed) on records from standard input, with the
+#                                 events in UNIT_TRACE_EVENTS; for regression checks of the filter
 #   unit-trace verify FILE|-      check an exported trace (or records on stdin, with the events in
 #                                 UNIT_TRACE_EVENTS) without changing it: every record an enabled,
 #                                 allow-listed event; payload wholly permitted fields (each once)
@@ -70,6 +73,23 @@ inside() {
 STATE="$WS/.unit-trace.state"
 
 cmd=${1:-}; [ $# -gt 0 ] && shift
+
+if [ "$cmd" = export ]; then
+	[ "${1:-}" = - ] || die "usage: unit-trace export - OUT_FILE"
+	out=${2:?usage: unit-trace export - OUT_FILE}; en=${UNIT_TRACE_EVENTS:-}
+	[ -n "$en" ] || die "UNIT_TRACE_EVENTS not set"
+	inside "$out" || die "output $out is outside the workspace $WS or is a link; nothing written"
+	rm -f "$out"
+	set +e
+	summary=$(awk -v mode=export -v enabled="$en" -v fields="$FIELDS" -v literals="$LITERALS" \
+		-v budget="$BUDGET" -v out="$out" -f "$FILTER")
+	rc=$?
+	set -e
+	[ $rc -ne 0 ] && rm -f "$out"
+	printf '{"source":"standard input (regression check)","events":["%s"],"budget_bytes":%s,"export":%s}\n' "$(echo $en | sed 's/ /","/g')" "$BUDGET" "$summary" > "$out.meta"
+	cat "$out.meta"
+	exit $rc
+fi
 
 if [ "$cmd" = verify ]; then
 	f=${1:?usage: unit-trace verify FILE|-}
@@ -148,6 +168,6 @@ stop)
 	exit $rc
 	;;
 *)
-	die "usage: unit-trace start [EVENT...] | unit-trace stop OUT_FILE | unit-trace verify FILE"
+	die "usage: unit-trace start [EVENT...] | stop OUT_FILE | export - OUT_FILE | verify FILE|-"
 	;;
 esac

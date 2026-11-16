@@ -151,7 +151,7 @@ fi
 
 if want H04; then
 	REC_START=$(utc); d=$WS/H04; mkdir -p "$d"
-	W=$(workload H04-W r4 '{"load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","interfering_event":"sched:sched_process_fork enabled during a second capture","outside_targets":["/root","workspace parent","link to /root"]}')
+	W=$(workload H04-W r5 '{"header_regression":"task names containing CPU-, flags-, timestamp- and tgid-shaped text, through the export path","load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","interfering_event":"sched:sched_process_fork enabled during a second capture","outside_targets":["/root","workspace parent","link to /root"]}')
 	T=/sys/kernel/tracing; f=""; ok=1
 	# Files outside the workspace, before. System logging (/tmp/messages) is excluded and named.
 	snap() { for r in / /tmp /run; do find "$r" -xdev \( -type f -o -type l \) -exec ls -ln --full-time {} + 2>/dev/null; done | grep -v " $BASE" | grep -v ' /tmp/messages' | sort; }
@@ -192,6 +192,19 @@ if want H04; then
 	vt field '            task-9      [000] d.h1.    1.2: irq_handler_entry: irq=1 name=irq data=1' '"unexpected_events":\[\],"unexpected_fields":\["irq_handler_entry.data"\],"unexplained_payload_tokens":0,"events_with_unexplained_payload":\[\],"unlabelled_names":0'
 	vt value '            task-9      [000] d.h1.    1.3: irq_handler_entry: irq=1 name=virtio0' "$Z"',"events_with_unexplained_payload":\[\],"unlabelled_names":1'
 	vt header '           myapp-9      [000] d.h1.    1.4: irq_handler_exit: irq=1 ret=handled' "$Z"',"events_with_unexplained_payload":\[\],"unlabelled_names":1'
+	# 5b. Header regression: task names that contain text shaped like a CPU field, flags, a
+	#     timestamp or a thread-group id go through the real export path (unit-trace export, from
+	#     standard input). The exported headers must be rebuilt from parsed fields, labelled, and
+	#     hold no fragment of the original names.
+	printf '%s\n' \
+		'     ab [002] zz-41      [000] d.h1.   1.000100: irq_handler_exit: irq=1 ret=handled' \
+		' q [7] d.h1. 9.9-42      [001] d..2.   1.000200: sched_switch: prev_comm=q [7] d.h1. 9.9 prev_pid=42 prev_prio=120 prev_state=S ==> next_comm=swapper/1 next_pid=0 next_prio=120' \
+		'       x (1) [3]-43  (   43) [000] d.h1.   1.000300: irq_handler_entry: irq=2 name=dev [001] x' \
+		| UNIT_TRACE_EVENTS="$VEV" unit-trace export - "$d/header-regression" > /dev/null 2>&1 || { ok=0; f="$f\"header regression export rejected\","; }
+	grep -q '"records_exported":3' "$d/header-regression.meta" 2>/dev/null || { ok=0; f="$f\"header regression did not export all three records\","; }
+	grep -qE 'ab|zz|q |9\.9|x \(|\[002\]|\[7\]|\[3\]|dev' "$d/header-regression" 2>/dev/null && { ok=0; f="$f\"fragment of an original task or device name exported\","; }
+	[ "$(grep -cE '^ *task-4[123] ' "$d/header-regression" 2>/dev/null)" = 3 ] || { ok=0; f="$f\"regression headers not rebuilt with labels\","; }
+	unit-trace verify "$d/header-regression" > "$d/header-regression.verify" 2>&1 || { ok=0; f="$f\"exported regression trace failed verification\","; }
 	# 5a. Rejected output is not written: an event switched on behind the tool during a capture
 	#     makes the export fail, and only the meta file (no trace content) is left.
 	unit-trace start > /dev/null 2>&1 || { ok=0; f="$f\"second capture did not start\","; }
@@ -226,7 +239,7 @@ if want H04; then
 	note_check "$st"
 	record "$d/H04.json" H04 "Bounded, isolated capture (PA08)" "harness check" "$st" "$W" \
 		"{\"written_bytes\":$size,\"files_outside_workspace_changed\":$changed}" "{\"trace\":$meta,\"verification\":$ver,\"enabled_during_capture\":\"$(tr '\n' ' ' < "$d/set_event.during")\"}" "" "$faults" \
-		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest-event.verify","H04/selftest-payload.verify","H04/selftest-field.verify","H04/selftest-value.verify","H04/selftest-header.verify","H04/rejected.meta","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
+		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest-event.verify","H04/selftest-payload.verify","H04/selftest-field.verify","H04/selftest-value.verify","H04/selftest-header.verify","H04/rejected.meta","H04/header-regression","H04/header-regression.meta","H04/header-regression.verify","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
 		'{"tools":"unit-trace, unit-evstamp, unit-inject","allow_list":"scheduling, interrupt, display-timing and power events only","file_check":"listing of files on the root, /tmp and /run file systems before and after, excluding the workspace and the system log /tmp/messages"}' \
 		"Functional checks only, with exact pass rules; no measurement uncertainty applies. The file check compares names, sizes and modification times, to one second, which detects any creation or removal and any rewrite that changes size or modification time"
 fi

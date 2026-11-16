@@ -48,14 +48,28 @@ BEGIN {
 {
 	lines++
 	line = $0
-	# Header: task-pid, optional tgid, [cpu], flags, timestamp, event name.
-	if (!match(line, /^ *.+-[0-9]+ +(\([ 0-9-]+\) +)?\[[0-9]+\] +[^ ]+ +[0-9]+\.[0-9]+: [a-z_]+: /)) { bad_lines++; next }
+	# Header: task-pid, optional tgid, [cpu], flags, timestamp, event name, parsed together.
+	# The kernel pads the task name to 16 columns and a task name is at most 15 characters, so the
+	# header match is bounded: it cannot reach into the payload. Within the header, every field
+	# is then taken from the right-hand end, so text inside the task name that looks like a CPU
+	# field, flags or a timestamp cannot move the split. Each field is checked against its own
+	# format; the exported header is rebuilt from these fields only, never copied.
+	if (!match(line, /^ *.{1,15}-[0-9]+ +(\([ 0-9-]+\) +)?\[[0-9]+\] +[^ ]+ +[0-9]+\.[0-9]+: [a-z_]+: /)) { bad_lines++; next }
 	head = substr(line, 1, RLENGTH); rest = substr(line, RLENGTH + 1)
-	match(head, / +(\([ 0-9-]+\) +)?\[[0-9]+\]/)
-	taskpid = substr(head, 1, RSTART - 1); tail = substr(head, RSTART)
-	sub(/^ +/, "", taskpid)
-	task = taskpid; sub(/-[0-9]+$/, "", task); pid = substr(taskpid, length(task) + 2)
-	ev = head; sub(/: $/, "", ev); sub(/.*: /, "", ev)
+	h = head; sub(/: $/, "", h)
+	if (!match(h, /: [a-z_]+$/)) { bad_lines++; next }
+	ev = substr(h, RSTART + 2); h = substr(h, 1, RSTART - 1)
+	if (!match(h, / +[0-9]+\.[0-9]+$/)) { bad_lines++; next }
+	ts = substr(h, RSTART); sub(/^ +/, "", ts); h = substr(h, 1, RSTART - 1)
+	if (!match(h, / +[A-Za-z0-9.]+$/)) { bad_lines++; next }
+	flags = substr(h, RSTART); sub(/^ +/, "", flags); h = substr(h, 1, RSTART - 1)
+	if (!match(h, / +\[[0-9]+\]$/)) { bad_lines++; next }
+	cpu = substr(h, RSTART); sub(/^ +/, "", cpu); h = substr(h, 1, RSTART - 1)
+	tgid = ""
+	if (match(h, / +\([ 0-9-]+\)$/)) { tgid = substr(h, RSTART); sub(/^ +/, "", tgid); h = substr(h, 1, RSTART - 1) }
+	if (!match(h, /-[0-9]+$/)) { bad_lines++; next }
+	pid = substr(h, RSTART + 1); task = substr(h, 1, RSTART - 1); sub(/^ +/, "", task)
+	if (task == "" || length(task) > 15) { bad_lines++; next }
 	if (mode == "export") {
 		task = label(task)
 		for (k in ft) {
@@ -68,7 +82,7 @@ BEGIN {
 				rest = substr(rest, 1, RSTART - 1) p f "=" label(v) " " nx "=" substr(rest, RSTART + RLENGTH)
 			}
 		}
-		line = sprintf("%16s-%-7s%s%s", task, pid, tail, rest)
+		line = sprintf("%16s-%-7s %s%s %s %s: %s: %s", task, pid, (tgid == "" ? "" : tgid " "), cpu, flags, ts, ev, rest)
 	}
 	count[ev]++
 	if (!(ev in en)) { bad_events++; badev[ev] = 1; next }

@@ -16,7 +16,7 @@ This repository is the os.unit build system (work package UNIT-OS-WP-0002: build
 | `scripts/qemu-smoke.sh` | Boots the emulation image in QEMU and checks the smoke results on the serial console. |
 | `external/package/unit-harness/` | Test harness and trace capture (development and test images only). |
 | `scripts/qemu-harness.sh` | Boots the emulation image with the harness and keeps its result records on the host. |
-| `.github/workflows/build.yml` | CI: builds each configuration from a clean checkout, runs the smoke check and keeps the licence manifest. |
+| `.github/workflows/build.yml` | CI: builds each configuration from a clean checkout on the self-hosted runner `unit-build-1` (label `unit-build`; a manual run can pick a GitHub-hosted machine instead), keeps the licence manifest, then runs the smoke check and test harness on a GitHub-hosted machine with KVM. |
 
 ## Upstream components in the current image
 

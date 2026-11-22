@@ -10,6 +10,11 @@ on:
         type: choice
         options: [self-hosted, github-hosted]
         default: self-hosted
+# One run per pull request or branch. A newer push to a pull request cancels its running build;
+# on main a running build always finishes, and only the newest waiting run is kept.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   # Compiles the image. Runs on the self-hosted runner (unit-build-1, a VM on the Windows server),
   # or on a GitHub-hosted machine when a manual run picks github-hosted.

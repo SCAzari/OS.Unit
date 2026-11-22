@@ -96,13 +96,12 @@ pub fn density(
 
 /// Pixels per inch from the reported size, or None when the size is missing or unreliable:
 /// zero; density below 60 or above 600 pixels per inch; diagonal under 4 or over 120 inches;
-/// width-to-height ratio more than 10% from the pixel ratio; or a size that is only an aspect
-/// ratio in centimetres (16 x 9, 16 x 10, 21 x 9, 4 x 3), which some monitors report.
+/// width-to-height ratio more than 10% from the pixel ratio; or a recognised placeholder.
 fn reliable_ppi(width_px: i32, height_px: i32, (w_mm, h_mm): (u32, u32)) -> Option<f64> {
     if w_mm == 0 || h_mm == 0 || width_px <= 0 || height_px <= 0 {
         return None;
     }
-    if [(160, 90), (160, 100), (210, 90), (40, 30)].contains(&(w_mm, h_mm)) {
+    if is_placeholder_size(w_mm, h_mm) {
         return None;
     }
     let (w, h) = (w_mm as f64, h_mm as f64);
@@ -117,6 +116,19 @@ fn reliable_ppi(width_px: i32, height_px: i32, (w_mm, h_mm): (u32, u32)) -> Opti
     let diagonal_px = ((width_px as f64).powi(2) + (height_px as f64).powi(2)).sqrt();
     let ppi = diagonal_px / diagonal_in;
     (60.0..=600.0).contains(&ppi).then_some(ppi)
+}
+
+/// Recognised placeholder sizes (Issue UNIT-OS-ISS-0019, confirmed by the Senior User on
+/// 22 November 2026). Some displays report their aspect ratio in whole centimetres instead of
+/// their physical size. A reported size, in either orientation, of exactly 16 x 9, 16 x 10,
+/// 21 x 9, 32 x 9 or 4 x 3 cm is treated as missing, and sizing follows the fallback. Any other
+/// size, including genuine widescreen and ultrawide sizes, is checked by the other rules.
+pub const PLACEHOLDER_SIZES_MM: &[(u32, u32)] = &[(160, 90), (160, 100), (210, 90), (320, 90), (40, 30)];
+
+pub fn is_placeholder_size(w_mm: u32, h_mm: u32) -> bool {
+    PLACEHOLDER_SIZES_MM
+        .iter()
+        .any(|&(a, b)| (w_mm, h_mm) == (a, b) || (w_mm, h_mm) == (b, a))
 }
 
 /// Layout width in points: pixels / (density factor x display scaling), rounded down.
@@ -231,6 +243,60 @@ mod tests {
         let d = density(1080, 2400, (0, 0), ScreenKind::BuiltInHandheld, None);
         assert_eq!(d.source, DensitySource::Fallback);
         assert_eq!(layout_width(1080, d.factor, 1.0), 412);
+    }
+
+    /// Issue UNIT-OS-ISS-0019: a 16:9 monitor reporting the placeholder 16 x 9 cm falls back to
+    /// 1.0, while a genuine 16:9 monitor keeps its reported size.
+    #[test]
+    fn iss_0019_placeholder_16_9() {
+        let placeholder = density(1920, 1080, (160, 90), ScreenKind::External, None);
+        assert_eq!(placeholder.source, DensitySource::Fallback);
+        assert_eq!(placeholder.factor, 1.0);
+        // 24-inch 1920 x 1080 monitor, 531 x 299 mm: about 92 pixels per inch, factor 1.0.
+        let genuine = density(1920, 1080, (531, 299), ScreenKind::External, None);
+        assert_eq!(genuine.source, DensitySource::ReportedSize);
+        assert_eq!(genuine.factor, 1.0);
+        // 27-inch 3840 x 2160 monitor, 597 x 336 mm: about 163 pixels per inch, factor 1.75.
+        let uhd = density(3840, 2160, (597, 336), ScreenKind::External, None);
+        assert_eq!(uhd.source, DensitySource::ReportedSize);
+        assert_eq!(uhd.factor, 1.75);
+    }
+
+    /// Issue UNIT-OS-ISS-0019: a 32:9 ultrawide reporting the placeholder 32 x 9 cm falls back,
+    /// while a genuine 49-inch 32:9 ultrawide keeps its reported size.
+    #[test]
+    fn iss_0019_placeholder_32_9() {
+        let placeholder = density(5120, 1440, (320, 90), ScreenKind::External, None);
+        assert_eq!(placeholder.source, DensitySource::Fallback);
+        assert_eq!(placeholder.factor, 1.0);
+        // 49-inch 5120 x 1440 ultrawide, 1196 x 336 mm: about 109 pixels per inch, factor 1.125.
+        let genuine = density(5120, 1440, (1196, 336), ScreenKind::External, None);
+        assert_eq!(genuine.source, DensitySource::ReportedSize);
+        assert_eq!(genuine.factor, 1.125);
+        assert_eq!(layout_width(5120, genuine.factor, 1.0), 4551);
+    }
+
+    /// The other placeholders, in both orientations.
+    #[test]
+    fn iss_0019_other_placeholders() {
+        for (w, h) in [(160, 100), (210, 90), (40, 30), (90, 160), (90, 320)] {
+            assert!(is_placeholder_size(w, h), "{w} x {h} mm");
+        }
+        for (w, h) in [(161, 90), (520, 320), (800, 340), (1196, 336)] {
+            assert!(!is_placeholder_size(w, h), "{w} x {h} mm");
+        }
+    }
+
+    /// The layout class reflects the calculated width after scaling, even though Increment 1
+    /// renders every class with the compact layout.
+    #[test]
+    fn class_follows_scaled_width() {
+        let d = density(5120, 1440, (1196, 336), ScreenKind::External, None);
+        assert_eq!(LayoutClass::for_width(layout_width(5120, d.factor, 1.0)), LayoutClass::Expanded);
+        let d = density(1920, 1080, (531, 299), ScreenKind::External, None);
+        assert_eq!(LayoutClass::for_width(layout_width(1920, d.factor, 2.0)), LayoutClass::Expanded);
+        assert_eq!(LayoutClass::for_width(layout_width(1440, d.factor, 2.0)), LayoutClass::Medium);
+        assert_eq!(LayoutClass::for_width(layout_width(1080, d.factor, 2.0)), LayoutClass::Compact);
     }
 
     #[test]

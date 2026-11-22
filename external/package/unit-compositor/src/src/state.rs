@@ -50,6 +50,9 @@ pub struct UnitState {
     /// The pointer is drawn only after a pointer device has moved it; touch alone shows no cursor.
     pub pointer_visible: bool,
 
+    /// Layout class of the display (Requirement OS-52). Increment 1 lays out every class as compact.
+    pub layout_class: crate::layout::LayoutClass,
+
     pub backend: Option<UdevData>,
 }
 
@@ -109,6 +112,7 @@ impl UnitState {
             seat,
             pointer_location: (0.0, 0.0).into(),
             pointer_visible: false,
+            layout_class: crate::layout::LayoutClass::Compact,
             backend: None,
         }
     }

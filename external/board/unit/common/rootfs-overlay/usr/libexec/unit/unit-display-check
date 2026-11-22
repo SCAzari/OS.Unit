@@ -11,6 +11,7 @@ if wait_for 'unit-compositor .* running' 120; then
 	log | grep -m1 'session on' | sed 's/^/UNIT-DISPLAY: /'
 	log | grep -m1 'using GPU' | sed 's/^/UNIT-DISPLAY: /'
 	log | grep -m1 'display ' | sed 's/^/UNIT-DISPLAY: /'
+	log | grep 'layout:' | sed 's/^/UNIT-DISPLAY: /'
 	echo "UNIT-DISPLAY: compositor running"
 	echo "UNIT-DISPLAY: ready"
 else

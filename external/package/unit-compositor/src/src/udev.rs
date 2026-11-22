@@ -35,7 +35,7 @@ use smithay::{
         udev::{all_gpus, primary_gpu},
     },
     desktop::space::SpaceRenderElements,
-    output::{Mode as WlMode, Output, PhysicalProperties, Subpixel},
+    output::{Mode as WlMode, Output, PhysicalProperties, Scale, Subpixel},
     reexports::{
         calloop::{
             timer::{TimeoutAction, Timer},
@@ -52,7 +52,10 @@ use smithay::{
     wayland::compositor::SurfaceData,
 };
 
-use crate::state::UnitState;
+use crate::{
+    layout::{self, DisplayConfig, LayoutClass},
+    state::UnitState,
+};
 
 /// Display background before the Shell UI draws: Daylight surface colour #F4F2EE
 /// (Visual Design Specification).
@@ -134,7 +137,7 @@ pub fn init(
     let renderer = unsafe { GlesRenderer::new(context)? };
 
     let (connector_info, crtc, mode) = find_display(&fd).ok_or("no connected display found")?;
-    let output_name = format!("{:?}-{}", connector_info.interface(), connector_info.interface_id());
+    let output_name = format!("{}-{}", connector_info.interface().as_str(), connector_info.interface_id());
     let (w_mm, h_mm) = connector_info.size().unwrap_or((0, 0));
     tracing::info!(
         "display {}: {}x{} at {} Hz",
@@ -153,8 +156,39 @@ pub fn init(
             model: "Display".into(),
         },
     );
+    // Density and layout class (Requirement OS-52 - adaptive interface; Interface Design §5.1).
+    let config = DisplayConfig::load();
+    let connector_type = connector_info.interface().as_str();
+    let kind = config.screen_kind(connector_type);
+    let (px_w, px_h) = (mode.size().0 as i32, mode.size().1 as i32);
+    let density = layout::density(px_w, px_h, (w_mm, h_mm), kind, config.density_factor);
+    let scale = density.factor * config.display_scaling;
+    let width_points = layout::layout_width(px_w, density.factor, config.display_scaling);
+    let class = LayoutClass::for_width(width_points);
+    tracing::info!(
+        "layout: {:?} screen, density factor {:.3} ({:?}), scaling {:.2}, {} points wide: {} class",
+        kind,
+        density.factor,
+        density.source,
+        config.display_scaling,
+        width_points,
+        class
+    );
+    if class != LayoutClass::Compact {
+        tracing::info!(
+            "layout: the {} layout comes in a later increment; using the compact layout",
+            class
+        );
+    }
+    state.layout_class = class;
+
     let wl_mode = WlMode::from(mode);
-    output.change_current_state(Some(wl_mode), Some(Transform::Normal), None, Some((0, 0).into()));
+    output.change_current_state(
+        Some(wl_mode),
+        Some(Transform::Normal),
+        Some(Scale::Fractional(scale)),
+        Some((0, 0).into()),
+    );
     output.set_preferred(wl_mode);
     let _global = output.create_global::<UnitState>(&state.display_handle);
     state.space.map_output(&output, (0, 0));
@@ -289,10 +323,12 @@ impl UnitState {
 
         let mut elements: Vec<UnitRenderElements> = Vec::new();
         if *pointer_visible {
-            let loc = pointer_location.to_physical(1.0).to_i32_round::<i32>();
+            let scale = backend.output.current_scale().fractional_scale();
+            let loc = pointer_location.to_physical(scale).to_i32_round::<i32>();
+            let size = (POINTER_SIZE as f64 * scale).round() as i32;
             elements.push(UnitRenderElements::Pointer(SolidColorRenderElement::new(
                 backend.pointer_id.clone(),
-                Rectangle::<i32, Physical>::new(loc, (POINTER_SIZE, POINTER_SIZE).into()),
+                Rectangle::<i32, Physical>::new(loc, (size, size).into()),
                 CommitCounter::default(),
                 Color32F::from(POINTER_COLOUR),
                 Kind::Cursor,

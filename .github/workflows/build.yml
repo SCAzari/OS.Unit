@@ -115,6 +115,24 @@ jobs:
             build.log
           if-no-files-found: warn
 
+  # Unit tests of Unit's own Rust code (layout classes and density, Requirement OS-52).
+  # GitHub-hosted, so it runs alongside the image build.
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libraries
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get update -o Acquire::Retries=5
+          sudo -E apt-get install -y --no-install-recommends -o Acquire::Retries=5 \
+            libudev-dev libinput-dev libseat-dev libgbm-dev libdrm-dev libxkbcommon-dev libegl-dev libgles-dev pkg-config
+      - name: Unit compositor tests
+        working-directory: external/package/unit-compositor/src
+        run: cargo test --locked --release
+
   # Boots the image in QEMU. Always on a GitHub-hosted machine, which has KVM;
   # the self-hosted VM has no /dev/kvm while the Windows hypervisor is on.
   test:

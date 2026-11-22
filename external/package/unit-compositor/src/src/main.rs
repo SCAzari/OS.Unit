@@ -7,6 +7,7 @@
 
 mod handlers;
 mod input;
+mod layout;
 mod state;
 mod udev;
 

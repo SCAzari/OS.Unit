@@ -11,10 +11,12 @@ UNIT_COMPOSITOR_LICENSE = Proprietary (Unit; licence to be set under Design deci
 UNIT_COMPOSITOR_DEPENDENCIES = host-pkgconf libdrm libinput libxkbcommon mesa3d seatd udev
 
 # A local package is not vendored at download time, so fetch the crates pinned by Cargo.lock
-# into Buildroot's Cargo home before the offline build.
+# into Buildroot's Cargo home before the offline build. Buildroot's PATH puts the host rustc,
+# which cargo runs, first.
 define UNIT_COMPOSITOR_FETCH_CRATES
 	cd $(@D) && \
-	CARGO_HOME=$(BR_CARGO_HOME) $(HOST_DIR)/bin/cargo fetch --locked --manifest-path Cargo.toml
+	PATH=$(BR_PATH) CARGO_HOME=$(BR_CARGO_HOME) RUSTC=$(HOST_DIR)/bin/rustc \
+		$(HOST_DIR)/bin/cargo fetch --locked --manifest-path Cargo.toml
 endef
 UNIT_COMPOSITOR_PRE_BUILD_HOOKS += UNIT_COMPOSITOR_FETCH_CRATES
 

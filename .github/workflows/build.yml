@@ -141,6 +141,8 @@ jobs:
         run: make UNIT_IMAGE=${{ matrix.config }} smoke
       - name: Test harness in emulation
         run: make UNIT_IMAGE=${{ matrix.config }} harness
+      - name: Display and input check in emulation (Unit compositor)
+        run: make UNIT_IMAGE=${{ matrix.config }} display
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -148,5 +150,6 @@ jobs:
           path: |
             smoke.log
             harness.log
+            display.log
             results/
           if-no-files-found: warn

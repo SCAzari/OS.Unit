@@ -1,0 +1,17 @@
+config BR2_PACKAGE_UNIT_COMPOSITOR
+	bool "unit-compositor"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on BR2_INIT_SYSTEMD
+	select BR2_PACKAGE_HOST_RUSTC
+	select BR2_PACKAGE_LIBDRM
+	select BR2_PACKAGE_LIBINPUT
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_SEATD
+	select BR2_PACKAGE_MESA3D
+	select BR2_PACKAGE_MESA3D_OPENGL_EGL
+	select BR2_PACKAGE_MESA3D_OPENGL_ES
+	help
+	  Unit compositor: the Wayland compositor and window manager of
+	  Unit OS, built on the Smithay library (Software Architecture
+	  r1.16 §4). First version under work package UNIT-OS-WP-0009
+	  (Desktop Foundation - Increment 1).

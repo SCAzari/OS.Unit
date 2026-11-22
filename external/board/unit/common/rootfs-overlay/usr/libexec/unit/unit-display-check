@@ -1,0 +1,26 @@
+#!/bin/sh
+# Display and input check (UNIT-OS-WP-0009 checkpoint: the compositor renders and takes touch and
+# pointer input in emulation). Run by unit-display-check.service with unit.display_check=1;
+# scripts/qemu-display.sh takes the screenshots and sends the input from the host.
+log() { journalctl -b -u unit-compositor.service -o cat --no-pager 2>/dev/null; }
+wait_for() { # pattern, seconds
+	n=0; while ! log | grep -q "$1"; do sleep 1; n=$((n + 1)); [ $n -ge "$2" ] && return 1; done; return 0
+}
+FAIL=
+if wait_for 'unit-compositor .* running' 120; then
+	log | grep -m1 'session on' | sed 's/^/UNIT-DISPLAY: /'
+	log | grep -m1 'using GPU' | sed 's/^/UNIT-DISPLAY: /'
+	log | grep -m1 'display ' | sed 's/^/UNIT-DISPLAY: /'
+	echo "UNIT-DISPLAY: compositor running"
+	echo "UNIT-DISPLAY: ready"
+else
+	echo "UNIT-DISPLAY: compositor did not start"; log | tail -n 30 | sed 's/^/UNIT-DISPLAY:   /'; FAIL=1
+fi
+if [ -z "$FAIL" ]; then
+	wait_for 'input: pointer press' 90 && echo "UNIT-DISPLAY: pointer input received" || { echo "UNIT-DISPLAY: no pointer input"; FAIL=1; }
+	wait_for 'input: touch down' 30 && echo "UNIT-DISPLAY: touch input received" || { echo "UNIT-DISPLAY: no touch input"; FAIL=1; }
+	sleep 5 # time for the host's last screenshot
+fi
+log | grep 'input:' | head -n 8 | sed 's/^/UNIT-DISPLAY:   /'
+[ -z "$FAIL" ] && echo "UNIT-DISPLAY: PASS" || echo "UNIT-DISPLAY: FAIL"
+systemctl poweroff --no-block

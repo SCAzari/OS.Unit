@@ -3,6 +3,7 @@
 #   make UNIT_IMAGE=<name>   build another configuration from external/configs (without _defconfig)
 #   make smoke           boot the emulation image in QEMU and run the smoke check
 #   make harness         boot the emulation image in QEMU and run the test harness
+#   make display         boot the emulation image with the Unit compositor and check display and input
 #   make menuconfig      change the configuration; save with 'make savedefconfig'
 UNIT_IMAGE ?= unit_qemu_x86_64
 O ?= $(CURDIR)/output/$(UNIT_IMAGE)
@@ -23,7 +24,10 @@ smoke:
 harness:
 	scripts/qemu-harness.sh $(O)/images
 
+display:
+	scripts/qemu-display.sh $(O)/images
+
 clean:
 	rm -rf $(O)
 
-.PHONY: all smoke harness clean menuconfig savedefconfig linux-menuconfig legal-info source
+.PHONY: all smoke harness display clean menuconfig savedefconfig linux-menuconfig legal-info source

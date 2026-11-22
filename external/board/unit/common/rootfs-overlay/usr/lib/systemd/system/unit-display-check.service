@@ -1,0 +1,14 @@
+[Unit]
+Description=Unit OS display and input check (emulation)
+ConditionKernelCommandLine=unit.display_check=1
+After=unit-compositor.service
+Wants=unit-compositor.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/unit/unit-display-check
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,45 @@
+#!/bin/sh
+# Unit OS smoke check: run by unit-smoke.service only when the kernel command line has unit.smoke=1.
+# Prints results on the console, then powers off. Used by scripts/qemu-smoke.sh.
+FAIL=
+echo "UNIT-SMOKE: $(cat /etc/unit-release)"
+echo "UNIT-SMOKE: kernel $(uname -r)"
+# Init: PID 1 must be systemd, and start-up must finish with no failed unit.
+if [ "$(cat /proc/1/comm)" = systemd ]; then
+	echo "UNIT-SMOKE: init $(systemctl --version | head -n 1)"
+else
+	echo "UNIT-SMOKE: init NOT systemd ($(cat /proc/1/comm))"; FAIL=1
+fi
+n=0
+while [ "$(systemctl list-jobs --no-legend 2>/dev/null | grep -vc unit-smoke)" -gt 0 ] && [ $n -lt 180 ]; do
+	sleep 1; n=$((n + 1))
+done
+[ $n -ge 180 ] && { echo "UNIT-SMOKE: start-up jobs still running after 180 s"; systemctl list-jobs --no-legend; FAIL=1; }
+failed=$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}')
+if [ -z "$failed" ]; then
+	echo "UNIT-SMOKE: start-up complete, no failed units"
+else
+	for u in $failed; do echo "UNIT-SMOKE: failed unit $u"; journalctl -b -u "$u" --no-pager -n 20 2>/dev/null | sed 's/^/UNIT-SMOKE:   /'; done
+	FAIL=1
+fi
+if systemctl is-active --quiet dbus-broker.service || systemctl is-active --quiet dbus.service; then
+	echo "UNIT-SMOKE: message bus active"
+else
+	echo "UNIT-SMOKE: message bus NOT active"; FAIL=1
+fi
+for f in xe/ptl_guc_70.bin xe/ptl_huc.bin xe/ptl_gsc_1.bin i915/xe3lpd_dmc.bin intel/ipu/ipu7ptl_fw.bin; do
+	if [ -e /lib/firmware/$f ] || [ -e /lib/firmware/$f.zst ] || [ -e /lib/firmware/$f.xz ]; then
+		echo "UNIT-SMOKE: firmware $f present"
+	else
+		echo "UNIT-SMOKE: firmware $f MISSING"; FAIL=1
+	fi
+done
+if command -v vulkaninfo >/dev/null 2>&1; then
+	if vulkaninfo --summary 2>/dev/null | grep -q deviceName; then
+		echo "UNIT-SMOKE: vulkan $(vulkaninfo --summary 2>/dev/null | grep -m1 deviceName | sed 's/.*= //')"
+	else
+		echo "UNIT-SMOKE: vulkan NO DEVICE"; FAIL=1
+	fi
+fi
+[ -z "$FAIL" ] && echo "UNIT-SMOKE: PASS" || echo "UNIT-SMOKE: FAIL"
+systemctl poweroff --no-block

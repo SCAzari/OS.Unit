@@ -1,0 +1,14 @@
+[Unit]
+Description=Unit OS test harness (development and test images)
+ConditionKernelCommandLine=unit.harness
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/unit/unit-harness-boot
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

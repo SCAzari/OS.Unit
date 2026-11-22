@@ -1,0 +1,7 @@
+# Wired network in emulation only (QEMU user networking). On core.unit the network service uses
+# Wi-Fi through iwd, or a supported cellular module (Software Architecture r1.16 §7).
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes

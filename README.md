@@ -25,7 +25,8 @@ This repository is the os.unit build system (work package UNIT-OS-WP-0002: build
 | Kernel | Linux (long-term 6.18 series) | 6.18.63 |
 | Firmware | linux-firmware, Intel graphics (i915, xe) | Buildroot 2026.02.3 package |
 | Graphics | Mesa: Intel Vulkan (ANV), Intel OpenGL (Iris), software Vulkan (lavapipe, for emulation) | 26.0.1 |
-| User space | BusyBox init and tools (placeholder until Unit's system services) | Buildroot 2026.02.3 package |
+| Init and services | systemd, with dbus-broker as the message bus, systemd-logind and systemd-networkd (Software Architecture r1.16 §7) | 258.7 (Buildroot 2026.02.3 package) |
+| User space tools | BusyBox | Buildroot 2026.02.3 package |
 | Toolchain | Bootlin x86-64 glibc stable | Buildroot 2026.02.3 package |
 
 Minimums for the Intel Arc B390 graphics: Linux 6.17 and Mesa 25.1.6 (core.unit D-02 Decision Record).
@@ -45,8 +46,10 @@ Output images are in `output/<config>/images/`. The first build compiles the too
 
 ## Smoke check
 
-Booting with `unit.smoke=1` on the kernel command line runs `/etc/init.d/S99unit-smoke`, which prints:
-the Unit OS release and build, the kernel version, whether the Intel Xe3 firmware files are present, and the Vulkan device found, then `UNIT-SMOKE: PASS` or `FAIL`, and powers off.
+Booting with `unit.smoke=1` on the kernel command line starts `unit-smoke.service` (`/usr/libexec/unit/unit-smoke`), which prints:
+the Unit OS release and build, the kernel version, that PID 1 is systemd and start-up finished with no failed unit, that the message bus is active,
+whether the Intel Xe3 firmware files are present, and the Vulkan device found, then `UNIT-SMOKE: PASS` or `FAIL`, and powers off.
+The test harness starts the same way from `unit-harness.service` with `unit.harness=<scenarios|all>`.
 
 ## Test harness and trace capture
 

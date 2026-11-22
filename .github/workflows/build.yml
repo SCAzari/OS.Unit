@@ -13,8 +13,10 @@ on:
 jobs:
   # Compiles the image. Runs on the self-hosted runner (unit-build-1, a VM on the Windows server),
   # or on a GitHub-hosted machine when a manual run picks github-hosted.
+  # This repository is public: pull requests from forks always build on a GitHub-hosted machine,
+  # so code from outside the repository never runs on the self-hosted runner.
   build:
-    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github-hosted') && 'ubuntu-24.04' || fromJSON('["self-hosted","unit-build"]') }}
+    runs-on: ${{ ((github.event_name == 'workflow_dispatch' && inputs.runner == 'github-hosted') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)) && 'ubuntu-24.04' || fromJSON('["self-hosted","unit-build"]') }}
     timeout-minutes: 358
     strategy:
       matrix:

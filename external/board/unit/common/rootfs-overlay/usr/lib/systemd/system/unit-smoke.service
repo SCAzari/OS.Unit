@@ -1,0 +1,13 @@
+[Unit]
+Description=Unit OS smoke check (emulation)
+ConditionKernelCommandLine=unit.smoke=1
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/unit/unit-smoke
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

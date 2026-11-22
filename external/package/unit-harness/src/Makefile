@@ -9,10 +9,11 @@ unit-evstamp: unit-evstamp.c
 unit-inject: unit-inject.c
 	$(CC) $(CFLAGS) -o $@ $<
 install: all
-	install -d $(DESTDIR)/usr/bin $(DESTDIR)/usr/lib/unit-harness $(DESTDIR)/etc/init.d
+	install -d $(DESTDIR)/usr/bin $(DESTDIR)/usr/lib/unit-harness $(DESTDIR)/usr/libexec/unit $(DESTDIR)/usr/lib/systemd/system
 	install -m 0755 $(BIN) $(SCRIPTS) $(DESTDIR)/usr/bin/
 	install -m 0644 lib.sh trace-filter.awk $(DESTDIR)/usr/lib/unit-harness/
-	install -m 0755 S98unit-harness $(DESTDIR)/etc/init.d/S98unit-harness
+	install -m 0755 unit-harness-boot $(DESTDIR)/usr/libexec/unit/unit-harness-boot
+	install -m 0644 unit-harness.service $(DESTDIR)/usr/lib/systemd/system/unit-harness.service
 clean:
 	rm -f $(BIN)
 .PHONY: all install clean

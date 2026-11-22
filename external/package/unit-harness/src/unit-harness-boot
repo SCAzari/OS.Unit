@@ -1,8 +1,7 @@
 #!/bin/sh
 # Runs the Unit OS test harness when the kernel command line has unit.harness=<scenarios|all>,
-# then powers off. Used by scripts/qemu-harness.sh. Development and test images only.
-case "$1" in start) ;; *) exit 0 ;; esac
+# then powers off. Started by unit-harness.service. Development and test images only.
 sel=$(tr ' ' '\n' < /proc/cmdline | sed -n 's/^unit.harness=//p')
 [ -z "$sel" ] && exit 0
 /usr/bin/unit-harness "$sel"
-poweroff -f
+systemctl poweroff --no-block

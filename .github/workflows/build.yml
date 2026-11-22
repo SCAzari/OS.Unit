@@ -4,9 +4,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Where to compile (self-hosted needs unit-build-1 online)
+        type: choice
+        options: [self-hosted, github-hosted]
+        default: self-hosted
 jobs:
+  # Compiles the image. Runs on the self-hosted runner (unit-build-1, a VM on the Windows server),
+  # or on a GitHub-hosted machine when a manual run picks github-hosted.
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github-hosted') && 'ubuntu-24.04' || fromJSON('["self-hosted","unit-build"]') }}
     timeout-minutes: 358
     strategy:
       matrix:
@@ -16,6 +24,7 @@ jobs:
         with:
           submodules: true
       - name: Free disk space
+        if: runner.environment == 'github-hosted'
         run: |
           df -h /
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
@@ -23,6 +32,7 @@ jobs:
           sudo swapoff -a && sudo rm -f /mnt/swapfile /swapfile || true
           df -h /
       - name: Install host packages
+        if: runner.environment == 'github-hosted'
         timeout-minutes: 20
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -30,10 +40,30 @@ jobs:
           APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
           sudo -E apt-get update $APT
           sudo -E apt-get install -y --no-install-recommends $APT build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
-            unzip rsync cpio file wget python3 qemu-system-x86 ccache \
+            unzip rsync cpio file wget python3 ccache \
             patch perl git bzip2 xz-utils gzip g++ debianutils ca-certificates
-          sudo chmod 666 /dev/kvm || true
+      - name: Check host packages
+        if: runner.environment == 'self-hosted'
+        run: |
+          # Installed once by setup-runner.sh; the runner can't use sudo. List anything missing.
+          missing=""
+          for p in build-essential bc bison flex libssl-dev libelf-dev libncurses-dev unzip rsync cpio file wget \
+                   python3 ccache patch perl git bzip2 xz-utils gzip g++ debianutils ca-certificates; do
+            dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"
+          done
+          [ -z "$missing" ] || { echo "::error::Missing on the runner VM:$missing (sudo apt-get install -y$missing)"; exit 1; }
+          df -h "$GITHUB_WORKSPACE" | tail -1
+      - name: Use persistent caches
+        if: runner.environment == 'self-hosted'
+        run: |
+          # Keep downloads and ccache on the VM between runs instead of moving them through GitHub's cache.
+          mkdir -p "$HOME/unit-cache/dl" "$HOME/unit-cache/ccache"
+          rm -rf dl .ccache
+          ln -s "$HOME/unit-cache/dl" dl
+          ln -s "$HOME/unit-cache/ccache" .ccache
+          du -sh "$HOME/unit-cache"/* || true
       - name: Restore download and compiler caches
+        if: runner.environment == 'github-hosted'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -56,7 +86,7 @@ jobs:
           exit $rc
         shell: bash
       - name: Save download and compiler caches
-        if: always()
+        if: always() && runner.environment == 'github-hosted'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -65,11 +95,7 @@ jobs:
           key: unit-os-${{ matrix.config }}-${{ hashFiles('external/configs/*', '.gitmodules') }}-${{ github.run_id }}
       - name: Record download hashes
         if: always()
-        run: find dl -name 'linux-*.tar.*' -exec sha256sum {} \; || true
-      - name: Smoke check in emulation
-        run: make UNIT_IMAGE=${{ matrix.config }} smoke
-      - name: Test harness in emulation
-        run: make UNIT_IMAGE=${{ matrix.config }} harness
+        run: find -L dl -name 'linux-*.tar.*' -exec sha256sum {} \; || true
       - name: Licence information
         run: make UNIT_IMAGE=${{ matrix.config }} legal-info >/dev/null
       - uses: actions/upload-artifact@v4
@@ -80,6 +106,39 @@ jobs:
             output/${{ matrix.config }}/images/
             output/${{ matrix.config }}/legal-info/manifest.csv
             build.log
+          if-no-files-found: warn
+
+  # Boots the image in QEMU. Always on a GitHub-hosted machine, which has KVM;
+  # the self-hosted VM has no /dev/kvm while the Windows hypervisor is on.
+  test:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        config: [unit_qemu_x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get update -o Acquire::Retries=5
+          sudo -E apt-get install -y --no-install-recommends -o Acquire::Retries=5 qemu-system-x86
+          sudo chmod 666 /dev/kvm || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.config }}
+      - name: Smoke check in emulation
+        run: make UNIT_IMAGE=${{ matrix.config }} smoke
+      - name: Test harness in emulation
+        run: make UNIT_IMAGE=${{ matrix.config }} harness
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.config }}-tests
+          path: |
             smoke.log
             harness.log
             results/

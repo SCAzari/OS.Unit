@@ -2,7 +2,9 @@
 # Display and input check (UNIT-OS-WP-0009 checkpoint: the compositor renders and takes touch and
 # pointer input in emulation). Run by unit-display-check.service with unit.display_check=1;
 # scripts/qemu-display.sh takes the screenshots and sends the input from the host.
-log() { journalctl -b -u unit-compositor.service -o cat --no-pager 2>/dev/null; }
+# By syslog identifier, not unit: pam_systemd moves the compositor into its logind session's
+# scope, so its messages are not filed under unit-compositor.service.
+log() { journalctl -b -t unit-compositor -o cat --no-pager 2>/dev/null; }
 wait_for() { # pattern, seconds
 	n=0; while ! log | grep -q "$1"; do sleep 1; n=$((n + 1)); [ $n -ge "$2" ] && return 1; done; return 0
 }
@@ -16,6 +18,10 @@ if wait_for 'unit-compositor .* running' 120; then
 	echo "UNIT-DISPLAY: ready"
 else
 	echo "UNIT-DISPLAY: compositor did not start"; log | tail -n 30 | sed 's/^/UNIT-DISPLAY:   /'; FAIL=1
+	{ systemctl status --no-pager -l unit-compositor.service; loginctl list-sessions --no-pager
+	  journalctl -b -u unit-compositor.service -o cat --no-pager | tail -n 10
+	  for p in $(pidof unit-compositor); do echo "pid $p state $(sed -n 's/^State:\t//p' /proc/$p/status) wchan $(cat /proc/$p/wchan)"; done
+	} 2>&1 | sed 's/^/UNIT-DISPLAY:   /'
 fi
 if [ -z "$FAIL" ]; then
 	wait_for 'input: pointer press' 90 && echo "UNIT-DISPLAY: pointer input received" || { echo "UNIT-DISPLAY: no pointer input"; FAIL=1; }

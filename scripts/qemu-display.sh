@@ -23,5 +23,7 @@ QPID=$!
 python3 "$(dirname "$0")/qmp-display.py" "$QMP" "$LOG" "$RES" || true
 wait $QPID || true
 cat "$LOG"
-grep -q "UNIT-DISPLAY: PASS" "$LOG" && { echo "Display check passed"; exit 0; }
+cat "$RES/picture.txt" 2>/dev/null || true
+grep -q "UNIT-DISPLAY: PASS" "$LOG" && grep -q "PICTURE: PASS" "$RES/picture.txt" 2>/dev/null &&
+	{ echo "Display check passed"; exit 0; }
 echo "Display check failed"; exit 1

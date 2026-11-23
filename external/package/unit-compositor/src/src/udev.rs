@@ -88,6 +88,8 @@ pub struct UdevData {
     frame_pending: bool,
     /// A redraw timer is already scheduled.
     redraw_scheduled: bool,
+    /// How frames may use the display's hardware planes (none on the emulated GPU).
+    frame_flags: FrameFlags,
     handle: LoopHandle<'static, UnitState>,
 }
 
@@ -118,6 +120,7 @@ pub fn init(
     let fd = DrmDeviceFd::new(DeviceFd::from(fd));
     let node = DrmNode::from_file(fd.clone()).ok();
     let (mut drm, drm_notifier) = DrmDevice::new(fd.clone(), true)?;
+    let mut frame_flags = FrameFlags::DEFAULT;
     // The emulated GPU has no 3D acceleration in the test machines: render in software there.
     // On real hardware (for example Intel Xe graphics) Mesa's hardware driver is used.
     if let Ok(driver) = fd.get_driver() {
@@ -126,6 +129,12 @@ pub fn init(
         if name == "virtio_gpu" && std::env::var_os("LIBGL_ALWAYS_SOFTWARE").is_none() {
             std::env::set_var("LIBGL_ALWAYS_SOFTWARE", "1");
             tracing::info!("emulated GPU: software rendering");
+        }
+        if name == "virtio_gpu" {
+            // The emulated GPU shows the pointer on its cursor plane only to a host window, and its
+            // screenshots then show a broken picture: draw everything into one buffer instead.
+            frame_flags = FrameFlags::empty();
+            tracing::info!("emulated GPU: no hardware planes; pointer drawn into the picture");
         }
     }
     let gbm = GbmDevice::new(fd.clone())?;
@@ -268,6 +277,7 @@ pub fn init(
         pointer_id: Id::new(),
         frame_pending: false,
         redraw_scheduled: false,
+        frame_flags,
         handle: handle.clone(),
     });
     state.pointer_location = state
@@ -345,7 +355,7 @@ impl UnitState {
             &mut backend.renderer,
             &elements,
             Color32F::from(BACKGROUND),
-            FrameFlags::DEFAULT,
+            backend.frame_flags,
         ) {
             Ok(result) => !result.is_empty,
             Err(err) => {

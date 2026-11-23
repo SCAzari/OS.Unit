@@ -153,8 +153,9 @@ if want H04; then
 	REC_START=$(utc); d=$WS/H04; mkdir -p "$d"
 	W=$(workload H04-W r5 '{"header_regression":"task names containing CPU-, flags-, timestamp- and tgid-shaped text, through the export path","load":"300 directory walks of /usr under tracing","budget_bytes":32768,"leftover_event":"sched:sched_process_fork enabled before start","interfering_event":"sched:sched_process_fork enabled during a second capture","outside_targets":["/root","workspace parent","link to /root"]}')
 	T=/sys/kernel/tracing; f=""; ok=1
-	# Files outside the workspace, before. System logging (/tmp/messages) is excluded and named.
-	snap() { for r in / /tmp /run; do find "$r" -xdev \( -type f -o -type l \) -exec ls -ln --full-time {} + 2>/dev/null; done | grep -v " $BASE" | grep -v ' /tmp/messages' | sort; }
+	# Files outside the workspace, before. System logging is excluded and named: the systemd
+	# journal (/run/log/journal, /var/log/journal), and /tmp/messages on images without systemd.
+	snap() { for r in / /tmp /run; do find "$r" -xdev \( -type f -o -type l \) -exec ls -ln --full-time {} + 2>/dev/null; done | grep -v " $BASE" | grep -vE ' (/tmp/messages|/run/log/journal/|/var/log/journal/)' | sort; }
 	snap > "$d/files.before"
 	# 1. Allow list: an event outside it is refused.
 	if unit-trace start syscalls:sys_enter_write > "$d/refused.log" 2>&1; then ok=0; f="$f\"event outside the allow list accepted\","; unit-trace stop "$d/discard" > /dev/null 2>&1; fi
@@ -232,7 +233,7 @@ if want H04; then
 	snap > "$d/files.after"
 	diff "$d/files.before" "$d/files.after" > "$d/files.diff" 2>&1
 	changed=$(grep -E '^[+-]' "$d/files.diff" | grep -vcE '^(\+\+\+|---)( |$)')
-	[ "$changed" -eq 0 ] || { ok=0; f="$f\"$changed file entries outside the workspace changed (see H04/files.diff)\","; }
+	[ "$changed" -eq 0 ] || { ok=0; f="$f\"$changed file entries outside the workspace changed (see H04/files.diff)\","; grep -E '^[<>+-] ' "$d/files.diff" | head -n 10 | sed 's/^/UNIT-HARNESS: H04 changed: /' > /dev/console 2>&1 || true; }
 	ver=$(cat "$d/trace.verify" 2>/dev/null); ver=${ver:-'{}'}
 	faults="[${f%,}]"
 	[ "$ok" = 1 ] && st="Harness check passed" || st="Harness check failed"
@@ -240,7 +241,7 @@ if want H04; then
 	record "$d/H04.json" H04 "Bounded, isolated capture (PA08)" "harness check" "$st" "$W" \
 		"{\"written_bytes\":$size,\"files_outside_workspace_changed\":$changed}" "{\"trace\":$meta,\"verification\":$ver,\"enabled_during_capture\":\"$(tr '\n' ' ' < "$d/set_event.during")\"}" "" "$faults" \
 		'["H04/trace","H04/trace.meta","H04/trace.verify","H04/set_event.during","H04/selftest-event.verify","H04/selftest-payload.verify","H04/selftest-field.verify","H04/selftest-value.verify","H04/selftest-header.verify","H04/rejected.meta","H04/header-regression","H04/header-regression.meta","H04/header-regression.verify","H04/skipped.meta","H04/outside.log","H04/files.diff"]' \
-		'{"tools":"unit-trace, unit-evstamp, unit-inject","allow_list":"scheduling, interrupt, display-timing and power events only","file_check":"listing of files on the root, /tmp and /run file systems before and after, excluding the workspace and the system log /tmp/messages"}' \
+		'{"tools":"unit-trace, unit-evstamp, unit-inject","allow_list":"scheduling, interrupt, display-timing and power events only","file_check":"listing of files on the root, /tmp and /run file systems before and after, excluding the workspace and the system log (the systemd journal in /run/log/journal and /var/log/journal, or /tmp/messages without systemd)"}' \
 		"Functional checks only, with exact pass rules; no measurement uncertainty applies. The file check compares names, sizes and modification times, to one second, which detects any creation or removal and any rewrite that changes size or modification time"
 fi
 

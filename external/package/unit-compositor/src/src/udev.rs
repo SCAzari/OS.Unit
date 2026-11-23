@@ -90,6 +90,9 @@ pub struct UdevData {
     redraw_scheduled: bool,
     /// How frames may use the display's hardware planes (none on the emulated GPU).
     frame_flags: FrameFlags,
+    /// Wait for drawing to finish before queueing a frame when the display path needs it. Always
+    /// on; the kernel option unit.render_wait=0 turns it off for the UNIT-OS-ISS-0020 A/B test.
+    render_wait: bool,
     handle: LoopHandle<'static, UnitState>,
 }
 
@@ -121,6 +124,12 @@ pub fn init(
     let node = DrmNode::from_file(fd.clone()).ok();
     let (mut drm, drm_notifier) = DrmDevice::new(fd.clone(), true)?;
     let mut frame_flags = FrameFlags::DEFAULT;
+    let render_wait = !std::fs::read_to_string("/proc/cmdline")
+        .map(|c| c.split_whitespace().any(|o| o == "unit.render_wait=0"))
+        .unwrap_or(false);
+    if !render_wait {
+        tracing::warn!("render wait off (unit.render_wait=0): diagnostic test only");
+    }
     // The emulated GPU has no 3D acceleration in the test machines: render in software there.
     // On real hardware (for example Intel Xe graphics) Mesa's hardware driver is used.
     if let Ok(driver) = fd.get_driver() {
@@ -278,6 +287,7 @@ pub fn init(
         frame_pending: false,
         redraw_scheduled: false,
         frame_flags,
+        render_wait,
         handle: handle.clone(),
     });
     state.pointer_location = state
@@ -351,22 +361,34 @@ impl UnitState {
             Err(err) => tracing::warn!("space elements: {:?}", err),
         }
 
+        let mut skip_frame = false;
         let rendered = match backend.compositor.render_frame(
             &mut backend.renderer,
             &elements,
             Color32F::from(BACKGROUND),
             backend.frame_flags,
         ) {
+            Ok(result) if result.is_empty => false,
             Ok(result) => {
-                // Wait for the frame to finish drawing before it goes to the display. Where the
-                // driver cannot take a fence for the frame (software rendering, the emulated GPU),
-                // the display could otherwise show a partly drawn frame.
-                if let PrimaryPlaneElement::Swapchain(element) = &result.primary_element {
-                    if !result.is_empty && !element.sync.is_exportable() {
-                        let _ = element.sync.wait();
+                // Smithay's submission contract: when the display path cannot synchronise with
+                // rendering (needs_sync), wait for the frame to finish drawing before queueing it,
+                // or the display can show a partly drawn frame (UNIT-OS-ISS-0020). If the wait
+                // fails, do not submit the frame; the next frame is drawn in full.
+                if result.needs_sync() && backend.render_wait {
+                    match &result.primary_element {
+                        PrimaryPlaneElement::Swapchain(element) => match element.sync.wait() {
+                            Ok(()) => true,
+                            Err(err) => {
+                                tracing::warn!("frame not shown: waiting for drawing failed: {:?}", err);
+                                skip_frame = true;
+                                false
+                            }
+                        },
+                        PrimaryPlaneElement::Element(_) => true,
                     }
+                } else {
+                    true
                 }
-                !result.is_empty
             }
             Err(err) => {
                 tracing::warn!("render: {:?}", err);
@@ -374,6 +396,10 @@ impl UnitState {
             }
         };
 
+        if skip_frame {
+            // The skipped frame's damage is lost: draw the next frame in full.
+            backend.compositor.reset_buffers();
+        }
         if rendered {
             match backend.compositor.queue_frame(()) {
                 Ok(()) => backend.frame_pending = true,

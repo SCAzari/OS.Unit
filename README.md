@@ -107,5 +107,9 @@ the display, and pressing or touching a window raises it. It starts at boot in i
 virtual terminal (`unit-compositor.service`). Dependencies are pinned in `Cargo.lock` to versions that build with
 Buildroot's Rust 1.88.
 
-Booting with `unit.display_check=1` runs `unit-display-check.service`; with `make display` the host takes
-screenshots and sends a pointer click and a touch through QEMU, and the check passes when the compositor logs both.
+Booting with `unit.display_check=1` runs `unit-display-check.service`. `make display` boots the image three times
+from cold (`DISPLAY_BOOTS`). On each boot the host checks the start-up picture before any input, moves the pointer to
+two positions and checks each picture shows it there, clicks, then sends a touch at separate x and y targets and
+checks the positions the compositor reported for the click and the touch. Every boot must pass. A further boot with
+`unit.render_wait=0` (the compositor's render wait off, same build and plane settings) is reported as the A/B test
+for UNIT-OS-ISS-0020 and does not affect the result (`DISPLAY_AB=0` skips it). Results: `results/display/<boot>/`.

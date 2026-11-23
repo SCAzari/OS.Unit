@@ -121,7 +121,7 @@ ok = check_picture("2-pointer-moved", shot(q, "2-pointer-moved"), True) and ok
 # Touch: one finger down and up at a quarter of the display.
 q.cmd("input-send-event", events=[
     {"type": "mtt", "data": {"type": "begin", "slot": 0, "tracking-id": 1, "axis": "x", "value": 8192}},
-    {"type": "mtt", "data": {"type": "begin", "slot": 0, "tracking-id": 1, "axis": "y", "value": 8192}}])
+    {"type": "mtt", "data": {"type": "data", "slot": 0, "tracking-id": 1, "axis": "y", "value": 8192}}])
 time.sleep(0.3)
 q.cmd("input-send-event", events=[
     {"type": "mtt", "data": {"type": "end", "slot": 0, "tracking-id": 1, "axis": "x", "value": 8192}}])

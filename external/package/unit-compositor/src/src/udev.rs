@@ -14,7 +14,7 @@ use smithay::{
             Fourcc,
         },
         drm::{
-            compositor::{DrmCompositor, FrameFlags},
+            compositor::{DrmCompositor, FrameFlags, PrimaryPlaneElement},
             exporter::gbm::GbmFramebufferExporter,
             DrmDevice, DrmDeviceFd, DrmEvent, DrmNode,
         },
@@ -131,8 +131,8 @@ pub fn init(
             tracing::info!("emulated GPU: software rendering");
         }
         if name == "virtio_gpu" {
-            // The emulated GPU shows the pointer on its cursor plane only to a host window, and its
-            // screenshots then show a broken picture: draw everything into one buffer instead.
+            // The emulated display's screenshots do not include hardware planes such as the cursor
+            // plane: draw everything into one buffer, so the screenshots show the whole picture.
             frame_flags = FrameFlags::empty();
             tracing::info!("emulated GPU: no hardware planes; pointer drawn into the picture");
         }
@@ -357,7 +357,17 @@ impl UnitState {
             Color32F::from(BACKGROUND),
             backend.frame_flags,
         ) {
-            Ok(result) => !result.is_empty,
+            Ok(result) => {
+                // Wait for the frame to finish drawing before it goes to the display. Where the
+                // driver cannot take a fence for the frame (software rendering, the emulated GPU),
+                // the display could otherwise show a partly drawn frame.
+                if let PrimaryPlaneElement::Swapchain(element) = &result.primary_element {
+                    if !result.is_empty && !element.sync.is_exportable() {
+                        let _ = element.sync.wait();
+                    }
+                }
+                !result.is_empty
+            }
             Err(err) => {
                 tracing::warn!("render: {:?}", err);
                 false

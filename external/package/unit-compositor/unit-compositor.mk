@@ -8,7 +8,7 @@ UNIT_COMPOSITOR_VERSION = 0.1.0
 UNIT_COMPOSITOR_SITE = $(BR2_EXTERNAL_UNIT_PATH)/package/unit-compositor/src
 UNIT_COMPOSITOR_SITE_METHOD = local
 UNIT_COMPOSITOR_LICENSE = Proprietary (Unit; licence to be set under Design decision D-09); MIT (Smithay) and the licences of the vendored crates
-UNIT_COMPOSITOR_DEPENDENCIES = host-pkgconf libdrm libinput libxkbcommon mesa3d seatd udev
+UNIT_COMPOSITOR_DEPENDENCIES = host-pkgconf libdrm libinput libxkbcommon mesa3d seatd udev xkeyboard-config
 
 # A local package is not vendored at download time, so fetch the crates pinned by Cargo.lock
 # into Buildroot's Cargo home before the offline build. Buildroot's PATH puts the host rustc,

@@ -66,8 +66,11 @@ impl UnitState {
         let data_device_state = DataDeviceState::new::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
-        seat.add_keyboard(Default::default(), 400, 30)
-            .expect("keyboard layout");
+        // Keyboard layout from the system's layout data (xkeyboard-config). Without it the
+        // compositor still runs with pointer and touch input, and says why there is no keyboard.
+        if let Err(err) = seat.add_keyboard(Default::default(), 400, 30) {
+            tracing::error!("no keyboard: the keyboard layout could not be compiled ({:?})", err);
+        }
         seat.add_pointer();
         seat.add_touch();
 

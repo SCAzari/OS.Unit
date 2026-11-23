@@ -133,7 +133,9 @@ pub fn is_placeholder_size(w_mm: u32, h_mm: u32) -> bool {
 
 /// Layout width in points: pixels / (density factor x display scaling), rounded down.
 pub fn layout_width(width_px: i32, factor: f64, scaling: f64) -> i32 {
-    (width_px as f64 / (factor * scaling)).floor() as i32
+    // Whole points, rounded down; the small allowance stops a factor given to limited decimal
+    // places (720/412 written as 1.74757281553) losing a point to floating-point error.
+    (width_px as f64 / (factor * scaling) + 1e-6).floor() as i32
 }
 
 /// Settings read from /etc/unit/display.conf (key=value lines): `density_factor` is the device
@@ -318,8 +320,11 @@ mod tests {
         assert_eq!(c.display_scaling, 2.0);
         assert_eq!(c.screen_kind("Virtual"), ScreenKind::BuiltInHandheld);
         assert_eq!(c.screen_kind("HDMI-A"), ScreenKind::External);
-        // Emulated Unit screen: 720 pixels at 720/412 is 412 points, compact.
-        let d = density(720, 1560, (0, 0), c.screen_kind("Virtual"), c.density_factor);
+        // Emulated Unit screen: 720 pixels at 720/412 is 412 points, compact. Uses the factor as
+        // written in the emulation image's /etc/unit/display.conf.
+        let e = DisplayConfig::parse("density_factor = 1.74757281553\nbuilt_in_connectors = Virtual\n");
+        let d = density(720, 1560, (0, 0), e.screen_kind("Virtual"), e.density_factor);
+        assert_eq!(layout_width(720, d.factor, 1.0), 412);
         assert_eq!(LayoutClass::for_width(layout_width(720, d.factor, 1.0)), LayoutClass::Compact);
         assert_eq!(DisplayConfig::parse("").display_scaling, 1.0);
     }

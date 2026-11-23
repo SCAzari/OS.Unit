@@ -28,6 +28,6 @@ if [ -z "$FAIL" ]; then
 	wait_for 'input: touch down' 30 && echo "UNIT-DISPLAY: touch input received" || { echo "UNIT-DISPLAY: no touch input"; FAIL=1; }
 	sleep 5 # time for the host's last screenshot
 fi
-log | grep 'input:' | head -n 8 | sed 's/^/UNIT-DISPLAY:   /'
+log | grep -E 'input: (pointer|touch)' | head -n 8 | sed 's/^/UNIT-DISPLAY:   /'
 [ -z "$FAIL" ] && echo "UNIT-DISPLAY: PASS" || echo "UNIT-DISPLAY: FAIL"
 systemctl poweroff --no-block

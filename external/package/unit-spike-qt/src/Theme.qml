@@ -19,7 +19,7 @@ QtObject {
     readonly property color text: dark ? "#ECEFEE" : "#1E2626"
     readonly property color secondary: dark ? "#A3AEAD" : "#566362"
     readonly property color accentSoft: dark ? Qt.rgba(79 / 255, 193 / 255, 179 / 255, 0.16) : "#E3F0EE"
-    readonly property color onAccent: dark ? "#0B1514" : "#FFFFFF"
+    readonly property color textOnAccent: dark ? "#0B1514" : "#FFFFFF"
     readonly property color glassTint: dark ? Qt.rgba(22 / 255, 28 / 255, 28 / 255, 0.72)
                                             : Qt.rgba(250 / 255, 248 / 255, 244 / 255, 0.66)
     readonly property color glassEdge: dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.55)

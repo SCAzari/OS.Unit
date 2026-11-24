@@ -65,7 +65,7 @@ Item {
         Rectangle {
             id: avatar
             x: 24; y: 24; width: 48; height: 48; radius: 24; color: Theme.accent
-            Text { anchors.centerIn: parent; text: "P"; color: Theme.onAccent; font.family: Theme.fontFamily; font.pixelSize: 22; font.weight: Font.DemiBold; Accessible.ignored: true }
+            Text { anchors.centerIn: parent; text: "P"; color: Theme.textOnAccent; font.family: Theme.fontFamily; font.pixelSize: 22; font.weight: Font.DemiBold; Accessible.ignored: true }
         }
         Text {
             id: profile

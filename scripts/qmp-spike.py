@@ -180,14 +180,16 @@ if test == "a11y":
             key(q, "tab")
             time.sleep(0.8)
             if i in (0, 1, len(scan) - 1):
+                time.sleep(3)   # let the frame settle: rendering lags in software emulation
                 shot(q, f"2-scan-{i + 1:02d}")
         # ...then on to the element to select, and "Select" (Space).
         for i in range(scan.index(press)):
             key(q, "tab")
             time.sleep(0.6)
+        time.sleep(3)
         shot(q, "3-before-select")
         key(q, "spc")
-        time.sleep(2)
+        time.sleep(4)
         shot(q, "4-after-select")
     if screen == "settings" and wait_for(r"PROBE C1 display", 600):
         shot(q, "5-display")

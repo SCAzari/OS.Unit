@@ -375,13 +375,19 @@ async fn scan(screen: &str) -> Res<bool> {
             continue;
         }
         let comp = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
-        if comp.grab_focus().await.unwrap_or(false) {
-            async_io::Timer::after(Duration::from_millis(150)).await;
-            if let Ok((now, _)) = read_node(&conn, &n.bus, &n.path, 0).await {
-                if now.focused {
-                    highlighted += 1;
-                }
+        // Toolkits may apply the request asynchronously: wait up to 3 s for the focused state.
+        let _ = comp.grab_focus().await;
+        let end = Instant::now() + Duration::from_secs(3);
+        loop {
+            if read_node(&conn, &n.bus, &n.path, 0).await.map(|(now, _)| now.focused).unwrap_or(false) {
+                highlighted += 1;
+                break;
             }
+            if Instant::now() > end {
+                println!("PROBE SCAN {} not-highlighted \"{}\"", screen, n.name);
+                break;
+            }
+            async_io::Timer::after(Duration::from_millis(100)).await;
         }
     }
     println!("PROBE SCAN {} highlighted={}/{}", screen, highlighted, order.len());
@@ -399,13 +405,17 @@ async fn scan(screen: &str) -> Res<bool> {
     if let Some(n) = order.iter().find(|n| n.name == press) {
         if n.has_action {
             let action = ActionProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
-            let done = action.do_action(0).await.unwrap_or(false);
-            async_io::Timer::after(Duration::from_millis(800)).await;
-            if let Some(expect) = select["expect"].as_str() {
-                let after = walk(&conn, &bus, &path).await?;
-                select_ok = done && after.iter().any(|a| a.name == expect);
-            } else if let Some(next) = select["expect_screen"].as_str() {
-                select_ok = done && find_window(&conn, next).await?.is_some();
+            let done = action.do_action(0).await;
+            println!("PROBE SCAN {} do-action \"{}\" {:?}", screen, press, done);
+            // Wait up to 6 s for the effect (applied asynchronously by some toolkits).
+            let end = Instant::now() + Duration::from_secs(6);
+            while !select_ok && Instant::now() < end {
+                async_io::Timer::after(Duration::from_millis(300)).await;
+                if let Some(expect) = select["expect"].as_str() {
+                    select_ok = walk(&conn, &bus, &path).await?.iter().any(|a| a.name == expect);
+                } else if let Some(next) = select["expect_screen"].as_str() {
+                    select_ok = find_window(&conn, next).await?.is_some();
+                }
             }
         }
     }

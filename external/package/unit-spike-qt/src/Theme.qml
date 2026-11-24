@@ -23,7 +23,7 @@ QtObject {
     readonly property color glassTint: dark ? Qt.rgba(22 / 255, 28 / 255, 28 / 255, 0.72)
                                             : Qt.rgba(250 / 255, 248 / 255, 244 / 255, 0.66)
     readonly property color glassEdge: dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.55)
-    readonly property string fontFamily: "Inter"
+    readonly property string fontFamily: "Inter Variable"
     // Type scale in points at 100% text size.
     readonly property real display: 56
     readonly property real title: 28

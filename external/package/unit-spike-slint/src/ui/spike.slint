@@ -247,7 +247,10 @@ export component SpikeWindow inherits Window {
     title: page == "sign-in" ? "Sign in" : (page == "display" ? "Display and appearance" : "Settings");
     preferred-width: 412px;
     preferred-height: 893px;
-    default-font-family: "Inter";
+    // The font file's family name (Visual Design Specification §9: Inter).
+    default-font-family: "Inter Variable";
+    // No window frame: the compact layout fills the display (as the Qt version, whose decorations are off).
+    no-frame: true;
     background: Theme.background;
     if root.page == "sign-in": SignIn { width: parent.width; height: parent.height; }
     if root.page == "settings": SettingsHome { width: parent.width; height: parent.height; open-display => { root.page = "display"; } }

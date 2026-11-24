@@ -32,4 +32,14 @@ FCITX5_CONF_OPTS = \
 	-DUSE_SYSTEM_PLASMA_WAYLAND_PROTOCOLS=OFF \
 	-DENABLE_LIBUUID=ON
 
+# Add-ons include Fcitx5's CMake helpers from FCITX_INSTALL_CMAKECONFIG_DIR, installed as the
+# absolute target path /usr/lib/cmake. In staging, point it at the copy beside the config file.
+define FCITX5_STAGING_CMAKECONFIG_DIR
+	$(SED) 's#^set(FCITX_INSTALL_CMAKECONFIG_DIR "/usr/lib/cmake")#get_filename_component(FCITX_INSTALL_CMAKECONFIG_DIR "$${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)#' \
+		$(STAGING_DIR)/usr/lib/cmake/Fcitx5Utils/Fcitx5UtilsConfig.cmake
+	grep -q 'get_filename_component(FCITX_INSTALL_CMAKECONFIG_DIR' \
+		$(STAGING_DIR)/usr/lib/cmake/Fcitx5Utils/Fcitx5UtilsConfig.cmake
+endef
+FCITX5_POST_INSTALL_STAGING_HOOKS += FCITX5_STAGING_CMAKECONFIG_DIR
+
 $(eval $(cmake-package))

@@ -1,0 +1,24 @@
+config BR2_PACKAGE_FCITX5
+	bool "fcitx5"
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_PACKAGE_SYSTEMD
+	depends on BR2_PACKAGE_WAYLAND
+	select BR2_PACKAGE_EXTRA_CMAKE_MODULES
+	select BR2_PACKAGE_ISO_CODES
+	select BR2_PACKAGE_JSON_FOR_MODERN_CPP
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_XKEYBOARD_CONFIG
+	select BR2_PACKAGE_EXPAT
+	select BR2_PACKAGE_CAIRO
+	select BR2_PACKAGE_PANGO
+	select BR2_PACKAGE_GDK_PIXBUF
+	select BR2_PACKAGE_LIBRSVG
+	select BR2_PACKAGE_LIBGLIB2
+	select BR2_PACKAGE_WAYLAND_PROTOCOLS
+	select BR2_PACKAGE_UTIL_LINUX
+	select BR2_PACKAGE_UTIL_LINUX_LIBUUID
+	help
+	  Input method framework, on Wayland through the input-method protocols (Software
+	  Architecture §4, input methods). Toolkit spike (UNIT-OS-WP-0010): no X11.
+
+	  https://github.com/fcitx/fcitx5

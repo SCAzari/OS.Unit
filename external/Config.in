@@ -4,3 +4,17 @@ source "$BR2_EXTERNAL_UNIT_PATH/package/unit-firmware/Config.in"
 source "$BR2_EXTERNAL_UNIT_PATH/package/unit-harness/Config.in"
 source "$BR2_EXTERNAL_UNIT_PATH/package/unit-compositor/Config.in"
 endmenu
+
+menu "Toolkit spike (UNIT-OS-WP-0010, spike branch only)"
+source "$BR2_EXTERNAL_UNIT_PATH/package/extra-cmake-modules/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/iso-codes/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/anthy-unicode/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/fcitx5/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/fcitx5-qt/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/fcitx5-anthy/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/font-inter/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/font-noto-sans-cjk-jp/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/unit-spike-qt/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/unit-spike-slint/Config.in"
+source "$BR2_EXTERNAL_UNIT_PATH/package/unit-spike-probe/Config.in"
+endmenu

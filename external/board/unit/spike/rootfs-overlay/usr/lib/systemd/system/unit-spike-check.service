@@ -1,0 +1,12 @@
+[Unit]
+Description=Unit OS toolkit spike check (UNIT-OS-WP-0010, emulation)
+ConditionKernelCommandLine=unit.spike_test
+After=unit-compositor.service
+Wants=unit-compositor.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/unit/unit-spike-check
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=1800

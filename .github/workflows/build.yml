@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 358
     strategy:
       matrix:
-        config: [unit_qemu_x86_64]
+        config: [unit_qemu_x86_64_spike]  # spike branch only (UNIT-OS-WP-0010)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,10 +138,10 @@ jobs:
   test:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 150
     strategy:
       matrix:
-        config: [unit_qemu_x86_64]
+        config: [unit_qemu_x86_64_spike]  # spike branch only (UNIT-OS-WP-0010)
     steps:
       - uses: actions/checkout@v4
       - name: Install QEMU
@@ -160,7 +160,11 @@ jobs:
       - name: Test harness in emulation
         run: make UNIT_IMAGE=${{ matrix.config }} harness
       - name: Display and input check in emulation (Unit compositor)
-        run: make UNIT_IMAGE=${{ matrix.config }} display
+        run: DISPLAY_AB=0 make UNIT_IMAGE=${{ matrix.config }} display
+      - name: Toolkit spike tests in emulation (UNIT-OS-WP-0010)
+        if: always()
+        timeout-minutes: 120
+        run: make UNIT_IMAGE=${{ matrix.config }} spike
       - uses: actions/upload-artifact@v4
         if: always()
         with:

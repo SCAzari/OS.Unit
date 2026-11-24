@@ -1,0 +1,11 @@
+#!/bin/sh
+# Toolkit spike session (UNIT-OS-WP-0010, issue #8). Started by the Unit compositor with
+# WAYLAND_DISPLAY set. Kernel options:
+#   unit.spike=qt|slint            toolkit
+#   unit.spike_screen=sign-in|settings
+#   unit.spike_test=a11y|ime|touch-tap|touch-drag
+#   unit.spike_im=fcitx            Qt only: the Fcitx5 Qt input module instead of Wayland text-input
+opt() { tr ' ' '\n' </proc/cmdline | sed -n "s/^$1=//p" | tail -n 1; }
+[ -n "$(opt unit.spike)" ] || exit 0
+export HOME=/root LANG=C.UTF-8
+exec dbus-run-session -- /usr/libexec/unit/unit-spike-apps

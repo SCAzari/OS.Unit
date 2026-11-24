@@ -1,0 +1,79 @@
+#!/bin/sh
+# Guest side of the toolkit spike tests (UNIT-OS-WP-0010, issue #8). The host drives the input and
+# takes the screenshots (scripts/qmp-spike.py); this prints UNIT-SPIKE and PROBE lines.
+opt() { tr ' ' '\n' </proc/cmdline | sed -n "s/^$1=//p" | tail -n 1; }
+TK=$(opt unit.spike); SCREEN=$(opt unit.spike_screen); TEST=$(opt unit.spike_test)
+SCREEN=${SCREEN:-sign-in}
+say() { echo "UNIT-SPIKE: $*"; }
+done_() { say "compositor and session log:"
+	journalctl -b -t unit-compositor -o cat --no-pager | grep -v 'touch-timing' | tail -n 40 | sed 's/^/UNIT-SPIKE-LOG: /'
+	[ -f /run/unit-spike-fcitx5.log ] && tail -n 20 /run/unit-spike-fcitx5.log | sed 's/^/UNIT-SPIKE-FCITX: /'
+	say "DONE"; sleep 3; systemctl poweroff --no-block; exit 0; }
+say "toolkit=$TK screen=$SCREEN test=$TEST"
+n=0; while [ ! -s /run/unit-spike.env ]; do sleep 1; n=$((n + 1)); [ $n -ge 240 ] && { say "FAIL no session"; done_; }; done
+set -a; . /run/unit-spike.env; set +a
+P=unit-spike-probe
+$P wait "$SCREEN" 180 || { say "FAIL no window"; done_; }
+say "window"
+sleep 3
+
+case "$TEST" in
+a11y)
+	$P dump "$SCREEN"
+	# C4a: the host presses Next (Tab) through the declared order, then Select (Space).
+	$P focus 75 &
+	fp=$!
+	sleep 3; say "focus-ready"
+	wait $fp
+	say "focus-done"
+	if [ "$SCREEN" = sign-in ]; then
+		$P dump sign-in >/tmp/after.txt; grep -q 'PIN, 1 of 6 digits entered' /tmp/after.txt \
+			&& say "C4A-SELECT ok" || say "C4A-SELECT failed"
+		$P scan sign-in
+	else
+		$P wait display 10 && say "C4A-SELECT ok" || say "C4A-SELECT failed"
+		$P dump display
+		$P scan display
+		$P wait settings 10
+		$P scan settings
+	fi
+	;;
+ime)
+	$P extents settings "Search settings (test field)"
+	say "ime-ready"
+	last=""; n=0
+	while [ $n -lt 90 ]; do
+		t=$($P text "Search settings (test field)")
+		[ "$t" != "$last" ] && { echo "$t"; last=$t; }
+		case "$t" in *日本語*) break ;; esac
+		sleep 2; n=$((n + 2))
+	done
+	sleep 5
+	;;
+touch-tap)
+	$P extents sign-in 5
+	say "touch-ready"
+	n=0
+	while [ $n -lt 600 ]; do
+		c=$(journalctl -b -t unit-compositor -o cat --no-pager | grep -c 'touch-timing: id=[0-9]* input_us')
+		[ "$c" -ge 200 ] && break
+		sleep 5; n=$((n + 5))
+	done
+	;;
+touch-drag)
+	$P extents settings "Display and appearance"
+	say "drag-open"
+	$P wait display 60 && sleep 2
+	$P extents display "Corner rounding"
+	say "drag-ready"
+	n=0
+	while [ $n -lt 300 ]; do
+		c=$(journalctl -b -t unit-compositor -o cat --no-pager | grep -c 'touch-timing: commit')
+		[ "$c" -ge 400 ] && break
+		sleep 5; n=$((n + 5))
+	done
+	sleep 5
+	;;
+esac
+journalctl -b -t unit-compositor -o cat --no-pager | grep 'touch-timing' | sed 's/^/UNIT-SPIKE-T: /'
+done_

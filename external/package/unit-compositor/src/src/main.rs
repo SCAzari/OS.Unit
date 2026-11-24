@@ -6,9 +6,11 @@
 //! applications in the compact (phone) layout: one application window fills the display at a time.
 
 mod handlers;
+mod ime;
 mod input;
 mod layout;
 mod state;
+mod timing;
 mod udev;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};

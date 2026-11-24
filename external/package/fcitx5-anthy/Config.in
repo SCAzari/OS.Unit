@@ -1,0 +1,10 @@
+config BR2_PACKAGE_FCITX5_ANTHY
+	bool "fcitx5-anthy"
+	depends on BR2_PACKAGE_FCITX5
+	depends on BR2_USE_WCHAR
+	select BR2_PACKAGE_ANTHY_UNICODE
+	help
+	  Anthy Japanese engine for Fcitx5 (toolkit spike, UNIT-OS-WP-0010; issue #8 8d: the
+	  engine for release is not decided here).
+
+	  https://github.com/fcitx/fcitx5-anthy

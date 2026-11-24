@@ -1,0 +1,101 @@
+{
+  "_about": "Shared screen specification for the toolkit spike (UNIT-OS-WP-0010, issue #8). Both toolkit versions implement these elements with these accessibility names; the probe checks each version against this file. 'elements' are in the layout's reading order (condition C1). 'scan' is the declared switch-scanning order (condition C4); it differs from the layout order on sign-in and settings so that following it shows the order is controlled, not just the default. 'checked' marks the selected radio choice. Kinds map to AT-SPI roles in the probe.",
+  "kinds": {
+    "label": ["label", "static", "text", "heading", "paragraph", "caption", "status bar"],
+    "heading": ["heading", "label", "static", "text"],
+    "button": ["push button", "button", "toggle button"],
+    "entry": ["entry", "text", "password text", "editbar"],
+    "slider": ["slider"],
+    "radio": ["radio button", "radio menu item", "toggle button", "check box"]
+  },
+  "status_bar": [
+    {"kind": "label", "name": "09:41"},
+    {"kind": "label", "name": "Bluetooth on"},
+    {"kind": "label", "name": "Wi-Fi connected"},
+    {"kind": "label", "name": "Battery 82 percent"}
+  ],
+  "screens": {
+    "sign-in": {
+      "source": "Interface Design SC13 Sign in (lock screen, issue #8 answer 8a); mock-up P01",
+      "elements": [
+        {"kind": "label", "name": "Time, 09:41"},
+        {"kind": "label", "name": "Saturday 14 November"},
+        {"kind": "label", "name": "1 new message. Sign in to see details"},
+        {"kind": "label", "name": "Profile 1"},
+        {"kind": "label", "name": "Enter your PIN"},
+        {"kind": "label", "name": "PIN, 0 of 6 digits entered"},
+        {"kind": "button", "name": "1"}, {"kind": "button", "name": "2"}, {"kind": "button", "name": "3"},
+        {"kind": "button", "name": "4"}, {"kind": "button", "name": "5"}, {"kind": "button", "name": "6"},
+        {"kind": "button", "name": "7"}, {"kind": "button", "name": "8"}, {"kind": "button", "name": "9"},
+        {"kind": "button", "name": "0"}, {"kind": "button", "name": "Delete digit"},
+        {"kind": "button", "name": "Forgot PIN?"},
+        {"kind": "button", "name": "Switch profile"},
+        {"kind": "button", "name": "Accessibility"}
+      ],
+      "scan": ["Accessibility", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "Delete digit",
+               "Switch profile", "Forgot PIN?"],
+      "select": {"press": "5", "expect": "PIN, 1 of 6 digits entered"}
+    },
+    "settings": {
+      "source": "Interface Design SC04 Settings home (wireframe B), with a test-only search field (issue #8 answer 8c)",
+      "elements": [
+        {"kind": "heading", "name": "Settings"},
+        {"kind": "entry", "name": "Search settings (test field)", "test_only": true},
+        {"kind": "button", "name": "Wi-Fi and network, administrator"},
+        {"kind": "button", "name": "Bluetooth and devices, administrator"},
+        {"kind": "button", "name": "Sound and audio output"},
+        {"kind": "button", "name": "Display and appearance"},
+        {"kind": "button", "name": "Home and navigation"},
+        {"kind": "button", "name": "Battery and performance, administrator sets limits"},
+        {"kind": "button", "name": "Profiles and sign-in"},
+        {"kind": "button", "name": "Privacy and accessibility"},
+        {"kind": "button", "name": "Storage, Updates, About"},
+        {"kind": "button", "name": "Back"},
+        {"kind": "button", "name": "Home"},
+        {"kind": "button", "name": "Open applications"}
+      ],
+      "scan": ["Wi-Fi and network, administrator", "Bluetooth and devices, administrator",
+               "Sound and audio output", "Display and appearance", "Home and navigation",
+               "Battery and performance, administrator sets limits", "Profiles and sign-in",
+               "Privacy and accessibility", "Storage, Updates, About", "Back", "Home",
+               "Open applications", "Search settings (test field)"],
+      "select": {"press": "Display and appearance", "expect_screen": "display"}
+    },
+    "display": {
+      "source": "Settings > Display and appearance, mock-up P07 (issue #8 answer 8b)",
+      "elements": [
+        {"kind": "label", "name": "Settings"},
+        {"kind": "heading", "name": "Display and appearance"},
+        {"kind": "label", "name": "Theme"},
+        {"kind": "radio", "name": "Daylight", "checked": true},
+        {"kind": "radio", "name": "Night Shift"},
+        {"kind": "radio", "name": "Pebble"},
+        {"kind": "label", "name": "Mode"},
+        {"kind": "radio", "name": "Light", "checked": true},
+        {"kind": "radio", "name": "Dark"},
+        {"kind": "radio", "name": "Auto"},
+        {"kind": "label", "name": "Accent colour"},
+        {"kind": "radio", "name": "Teal", "checked": true},
+        {"kind": "radio", "name": "Blue"}, {"kind": "radio", "name": "Violet"},
+        {"kind": "radio", "name": "Pink"}, {"kind": "radio", "name": "Orange"},
+        {"kind": "radio", "name": "Amber"}, {"kind": "radio", "name": "Green"},
+        {"kind": "slider", "name": "Glass", "value": 45},
+        {"kind": "slider", "name": "Corner rounding", "value": 20},
+        {"kind": "label", "name": "Icon shape"},
+        {"kind": "radio", "name": "Square"},
+        {"kind": "radio", "name": "Rounded", "checked": true},
+        {"kind": "radio", "name": "Squircle"}, {"kind": "radio", "name": "Circle"},
+        {"kind": "radio", "name": "Teardrop"},
+        {"kind": "button", "name": "Font, Inter"},
+        {"kind": "label", "name": "Changes apply at once, on the touchscreen and in VR. Reset to default returns to Daylight."},
+        {"kind": "button", "name": "Back"},
+        {"kind": "button", "name": "Home"},
+        {"kind": "button", "name": "Open applications"}
+      ],
+      "scan": ["Daylight", "Night Shift", "Pebble", "Light", "Dark", "Auto", "Teal", "Blue", "Violet",
+               "Pink", "Orange", "Amber", "Green", "Glass", "Corner rounding", "Square", "Rounded",
+               "Squircle", "Circle", "Teardrop", "Font, Inter", "Back", "Home", "Open applications"],
+      "select": {"press": "Back", "expect_screen": "settings"}
+    }
+  }
+}

@@ -1,0 +1,11 @@
+config BR2_PACKAGE_UNIT_SPIKE_SLINT
+	bool "unit-spike-slint"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on BR2_PACKAGE_HAS_LIBEGL && BR2_PACKAGE_HAS_LIBGLES
+	select BR2_PACKAGE_HOST_RUSTC
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_WAYLAND
+	select BR2_PACKAGE_FONTCONFIG
+	help
+	  Toolkit spike (UNIT-OS-WP-0010): the sign-in and settings screens in Slint, after
+	  spike/screens.json. Spike branch only.

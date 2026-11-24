@@ -1,0 +1,8 @@
+config BR2_PACKAGE_UNIT_SPIKE_PROBE
+	bool "unit-spike-probe"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	select BR2_PACKAGE_HOST_RUSTC
+	select BR2_PACKAGE_AT_SPI2_CORE
+	help
+	  Toolkit spike (UNIT-OS-WP-0010): reference screen reader and switch scanner over the
+	  AT-SPI bus, and the shared screen specification. Spike branch only.

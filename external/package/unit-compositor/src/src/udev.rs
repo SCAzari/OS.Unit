@@ -16,7 +16,7 @@ use smithay::{
         drm::{
             compositor::{DrmCompositor, FrameFlags, PrimaryPlaneElement},
             exporter::gbm::GbmFramebufferExporter,
-            DrmDevice, DrmDeviceFd, DrmEvent, DrmNode,
+            DrmDevice, DrmDeviceFd, DrmEvent, DrmEventTime, DrmNode,
         },
         egl::{EGLContext, EGLDisplay},
         libinput::{LibinputInputBackend, LibinputSessionInterface},
@@ -232,8 +232,15 @@ pub fn init(
     .map_err(|err| format!("display set-up failed: {:?}", err))?;
 
     // Vertical blank: the queued frame is on screen; draw the next one.
-    handle.insert_source(drm_notifier, |event, _, state| match event {
+    handle.insert_source(drm_notifier, |event, metadata, state| match event {
         DrmEvent::VBlank(_crtc) => {
+            let present_us = metadata.as_ref().and_then(|m| match m.time {
+                DrmEventTime::Monotonic(t) => Some(t.as_micros() as u64),
+                DrmEventTime::Realtime(_) => None,
+            });
+            if let Some(frame) = state.backend.as_ref().map(|b| b.frame_seq) {
+                state.touch_timing.presented(frame, present_us);
+            }
             if let Some(backend) = state.backend.as_mut() {
                 if let Err(err) = backend.compositor.frame_submitted() {
                     tracing::warn!("frame submission: {:?}", err);
@@ -339,6 +346,7 @@ impl UnitState {
             pointer_location,
             pointer_visible,
             start_time,
+            touch_timing,
             ..
         } = self;
         let Some(backend) = backend.as_mut() else { return };
@@ -411,6 +419,7 @@ impl UnitState {
                     backend.frame_pending = true;
                     backend.frame_seq += 1;
                     let seq = backend.frame_seq;
+                    touch_timing.frame_queued(seq);
                     let _ = backend
                         .handle
                         .insert_source(Timer::from_duration(FRAME_TIMEOUT), move |_, _, state| {

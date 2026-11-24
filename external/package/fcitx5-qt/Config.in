@@ -1,0 +1,9 @@
+config BR2_PACKAGE_FCITX5_QT
+	bool "fcitx5-qt"
+	depends on BR2_PACKAGE_FCITX5
+	depends on BR2_PACKAGE_QT6BASE_DBUS && BR2_PACKAGE_QT6BASE_GUI
+	help
+	  Fcitx5 input module for Qt 6 (toolkit spike, UNIT-OS-WP-0010: tried beside Qt's own
+	  Wayland text-input path).
+
+	  https://github.com/fcitx/fcitx5-qt

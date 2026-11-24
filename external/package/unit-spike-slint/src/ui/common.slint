@@ -1,0 +1,243 @@
+// Toolkit spike (UNIT-OS-WP-0010): shared tokens and components for the Slint version.
+// Visual Design Specification r1.5 §3 (Daylight, light and dark), §4.3 focus ring.
+
+export global Theme {
+    in-out property <bool> dark: false;
+    in-out property <int> accent-index: 0;
+    in-out property <int> theme-index: 0;
+    in-out property <int> shape-index: 1;
+    in-out property <float> radius: 20;
+    in-out property <float> glass: 45;
+    out property <float> glass-limit: 78;
+    out property <[color]> accents: [#11756B, #3D6FD8, #7A5CF0, #C2416F, #D2512F, #B7791F, #2E7D4F];
+    out property <color> accent: dark && accent-index == 0 ? #4FC1B3 : accents[accent-index];
+    out property <color> background: dark ? #121616 : #F4F2EE;
+    out property <color> surface: dark ? #1B2121 : #FFFFFF;
+    out property <color> surface2: dark ? #232A2A : #F0EEEA;
+    out property <color> text: dark ? #ECEFEE : #1E2626;
+    out property <color> secondary: dark ? #A3AEAD : #566362;
+    out property <color> accent-soft: dark ? #4FC1B329 : #E3F0EE;
+    out property <color> on-accent: dark ? #0B1514 : #FFFFFF;
+    // Glass (VDS §3.2): tint at the default opacity and hairline edge. Slint has no backdrop blur,
+    // so the spike draws the tint only (issue #8, 8h: recorded as an observation).
+    out property <color> glass-tint: dark ? #161C1CB8 : #FAF8F4A8;
+    out property <color> glass-edge: dark ? #FFFFFF1F : #FFFFFF8C;
+}
+
+// Focus ring: 3 px accent ring with a 2 px gap in the background colour.
+export component FocusRing inherits Rectangle {
+    in property <length> control-radius;
+    in property <length> control-width;
+    in property <length> control-height;
+    x: -5px; y: -5px; width: control-width + 10px; height: control-height + 10px;
+    border-radius: control-radius + 5px;
+    border-width: 3px; border-color: Theme.accent;
+    Rectangle {
+        x: 3px; y: 3px; width: parent.width - 6px; height: parent.height - 6px;
+        border-radius: parent.border-radius - 3px;
+        border-width: 2px; border-color: Theme.background;
+    }
+}
+
+export component StatusBar inherits Rectangle {
+    height: 36px;
+    Text {
+        x: 18px; vertical-alignment: center; height: parent.height;
+        text: "09:41"; color: Theme.secondary; font-size: 14px; font-weight: 500;
+        accessible-label: "09:41";
+    }
+    HorizontalLayout {
+        alignment: end; padding-right: 18px; spacing: 12px;
+        Text { text: "✱"; color: Theme.secondary; font-size: 14px; vertical-alignment: center; accessible-label: "Bluetooth on"; }
+        Text { text: "◔"; color: Theme.secondary; font-size: 14px; vertical-alignment: center; accessible-label: "Wi-Fi connected"; }
+        Text { text: "82%"; color: Theme.secondary; font-size: 14px; font-weight: 500; vertical-alignment: center; accessible-label: "Battery 82 percent"; }
+    }
+}
+
+export component Glass inherits Rectangle {
+    border-radius: Theme.radius * 1px;
+    background: Theme.glass-tint;
+    border-width: 1px; border-color: Theme.glass-edge;
+}
+
+// A focusable control: the FocusScope is the accessible element, so the focused element and the
+// element the screen reader announces are the same. Tab and Shift+Tab call tab-next / tab-prev,
+// which each screen links in its declared scanning order; Space and Return activate.
+export component Control inherits Rectangle {
+    in property <string> name;
+    in property <bool> checkable: false;
+    in property <bool> checked: false;
+    in property <length> ring-radius: self.border-radius;
+    callback activated();
+    callback tab-next();
+    callback tab-prev();
+    out property <bool> pressed: ta.pressed;
+    out property <bool> has-focus: fs.has-focus;
+    public function take-focus() { fs.focus(); }
+    ta := TouchArea { clicked => { root.activated(); } }
+    fs := FocusScope {
+        // Touch and pointer taps do not move keyboard focus (as in the Qt version).
+        focus-on-click: false;
+        accessible-role: button;
+        accessible-label: root.name;
+        accessible-checkable: root.checkable;
+        accessible-checked: root.checked;
+        accessible-action-default => { root.activated(); }
+        key-pressed(e) => {
+            if (e.text == Key.Tab) { root.tab-next(); return accept; }
+            if (e.text == Key.Backtab) { root.tab-prev(); return accept; }
+            if (e.text == " " || e.text == Key.Return) { root.activated(); return accept; }
+            reject
+        }
+    }
+    @children
+    if fs.has-focus: FocusRing { control-radius: root.ring-radius; control-width: root.width; control-height: root.height; }
+}
+
+// The same control exposed as a radio button (Slint needs a constant accessibility role).
+export component RadioControl inherits Rectangle {
+    in property <string> name;
+    in property <bool> checkable: false;
+    in property <bool> checked: false;
+    in property <length> ring-radius: self.border-radius;
+    callback activated();
+    callback tab-next();
+    callback tab-prev();
+    out property <bool> pressed: ta.pressed;
+    out property <bool> has-focus: fs.has-focus;
+    public function take-focus() { fs.focus(); }
+    ta := TouchArea { clicked => { root.activated(); } }
+    fs := FocusScope {
+        // Touch and pointer taps do not move keyboard focus (as in the Qt version).
+        focus-on-click: false;
+        accessible-role: radio-button;
+        accessible-label: root.name;
+        accessible-checkable: root.checkable;
+        accessible-checked: root.checked;
+        accessible-action-default => { root.activated(); }
+        key-pressed(e) => {
+            if (e.text == Key.Tab) { root.tab-next(); return accept; }
+            if (e.text == Key.Backtab) { root.tab-prev(); return accept; }
+            if (e.text == " " || e.text == Key.Return) { root.activated(); return accept; }
+            reject
+        }
+    }
+    @children
+    if fs.has-focus: FocusRing { control-radius: root.ring-radius; control-width: root.width; control-height: root.height; }
+}
+
+export component KeyButton inherits Control {
+    in property <string> label;
+    name: label;
+    width: 100px; height: 56px;
+    border-radius: Theme.radius * 0.75px;
+    background: self.pressed ? Theme.accent-soft : Theme.surface.with-alpha(0.7);
+    border-width: 1px; border-color: Theme.secondary.with-alpha(0.15);
+    Text { text: root.label; color: Theme.text; font-size: 28px; font-weight: 500;
+           horizontal-alignment: center; vertical-alignment: center; accessible-role: none; }
+}
+
+export component PillButton inherits Control {
+    in property <string> label;
+    height: 48px; width: max(120px, t.preferred-width + 40px);
+    border-radius: self.height / 2;
+    background: self.pressed ? Theme.accent-soft : transparent;
+    border-width: 1.5px; border-color: Theme.secondary.with-alpha(0.35);
+    t := Text { text: root.label; color: Theme.accent; font-size: 16px; font-weight: 600;
+                horizontal-alignment: center; vertical-alignment: center; accessible-role: none; }
+}
+
+export component SettingsRow inherits Control {
+    in property <string> title;
+    in property <string> tag;
+    name: tag == "" ? title : title + ", " + tag;
+    height: 56px;
+    border-radius: Theme.radius * 0.5px;
+    background: self.pressed ? Theme.accent-soft : transparent;
+    Text { x: 16px; height: parent.height; vertical-alignment: center; text: root.title;
+           color: Theme.text; font-size: 16px; accessible-role: none; }
+    Text { x: parent.width - 40px - self.preferred-width; height: parent.height; vertical-alignment: center;
+           text: root.tag; color: Theme.secondary; font-size: 12.5px; accessible-role: none; }
+    Text { x: parent.width - 28px; height: parent.height; vertical-alignment: center; text: "›";
+           color: Theme.secondary; font-size: 22px; accessible-role: none; }
+    Rectangle { x: 16px; y: parent.height - 1px; width: parent.width - 16px; height: 1px;
+                background: Theme.secondary.with-alpha(0.15); }
+}
+
+export component Choice inherits RadioControl {
+    in property <string> label;
+    in property <bool> show-label: true;
+    in property <color> label-color: Theme.text;
+    name: label; checkable: true;
+    if root.show-label: Text { x: 12px; y: parent.height - 10px - self.preferred-height; text: root.label;
+        color: root.label-color; font-size: 16px; font-weight: 600; accessible-role: none; }
+}
+
+export component Swatch inherits RadioControl {
+    in property <color> swatch-color;
+    checkable: true;
+    width: 48px; height: 48px; ring-radius: 24px;
+    Rectangle {
+        width: root.checked ? 44px : 36px; height: self.width; border-radius: self.width / 2;
+        background: root.checked ? transparent : root.swatch-color;
+        border-width: root.checked ? 4px : 0px; border-color: Theme.text;
+        if root.checked: Rectangle { width: 32px; height: 32px; border-radius: 16px; background: root.swatch-color; }
+    }
+}
+
+export component UnitSlider inherits Rectangle {
+    in property <string> name;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in-out property <float> value: 0;
+    in property <float> marker: -1;
+    callback tab-next();
+    callback tab-prev();
+    public function take-focus() { fs.focus(); }
+    height: 48px;
+    property <float> fraction: (value - minimum) / (maximum - minimum);
+    track := Rectangle {
+        x: 12px; width: parent.width - 24px; height: 6px; border-radius: 3px;
+        background: Theme.surface2; border-width: 1.5px; border-color: Theme.secondary;
+        Rectangle { x: 0; width: parent.width * root.fraction; height: parent.height; border-radius: 3px; background: Theme.accent; }
+        if root.marker >= 0: Rectangle {
+            x: parent.width * (root.marker - root.minimum) / (root.maximum - root.minimum) - 1px;
+            width: 2px; height: 24px; background: Theme.secondary;
+        }
+    }
+    Rectangle {
+        x: track.x + track.width * root.fraction - 13px; width: 26px; height: 26px; border-radius: 13px;
+        background: Theme.surface; border-width: 3px; border-color: Theme.accent;
+    }
+    TouchArea {
+        moved => { root.value = Math.round(Math.clamp(root.minimum + (self.mouse-x - track.x) / track.width * (root.maximum - root.minimum), root.minimum, root.maximum)); }
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.value = Math.round(Math.clamp(root.minimum + (self.mouse-x - track.x) / track.width * (root.maximum - root.minimum), root.minimum, root.maximum)); } }
+    }
+    fs := FocusScope {
+        focus-on-click: false;
+        accessible-role: slider;
+        accessible-label: root.name;
+        accessible-value: Math.round(root.value);
+        accessible-value-minimum: root.minimum;
+        accessible-value-maximum: root.maximum;
+        accessible-value-step: 1;
+        accessible-action-increment => { root.value = Math.min(root.maximum, root.value + 1); }
+        accessible-action-decrement => { root.value = Math.max(root.minimum, root.value - 1); }
+        key-pressed(e) => {
+            if (e.text == Key.Tab) { root.tab-next(); return accept; }
+            if (e.text == Key.Backtab) { root.tab-prev(); return accept; }
+            if (e.text == Key.RightArrow) { root.value = Math.min(root.maximum, root.value + 1); return accept; }
+            if (e.text == Key.LeftArrow) { root.value = Math.max(root.minimum, root.value - 1); return accept; }
+            reject
+        }
+    }
+    if fs.has-focus: FocusRing { control-radius: 12px; control-width: root.width; control-height: root.height; }
+}
+
+export component NavButton inherits Control {
+    in property <string> glyph;
+    width: 56px; height: 56px; ring-radius: 28px; border-radius: 28px;
+    background: self.pressed ? Theme.accent-soft : transparent;
+    Text { text: root.glyph; color: Theme.text; font-size: 24px; horizontal-alignment: center;
+           vertical-alignment: center; accessible-role: none; }
+}

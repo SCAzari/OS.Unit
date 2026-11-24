@@ -1,0 +1,8 @@
+config BR2_PACKAGE_ANTHY_UNICODE
+	bool "anthy-unicode"
+	depends on BR2_USE_WCHAR
+	help
+	  Japanese kana-kanji conversion engine (UTF-8 version of Anthy), used by fcitx5-anthy
+	  for the toolkit spike's Japanese input test (UNIT-OS-WP-0010).
+
+	  https://github.com/fujiwarat/anthy-unicode

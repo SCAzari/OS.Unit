@@ -58,6 +58,9 @@ pub struct UnitState {
     /// so they are never logged otherwise.
     pub log_input: bool,
 
+    /// Touch response measurement, on test boots only (unit.touch_timing=1; toolkit spike).
+    pub touch_timing: crate::timing::TouchTiming,
+
     pub backend: Option<UdevData>,
 }
 
@@ -76,6 +79,7 @@ impl UnitState {
         let shm_state = ShmState::new::<Self>(&dh, vec![]);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let data_device_state = DataDeviceState::new::<Self>(&dh);
+        crate::ime::init(&dh);
         let mut seat_state = SeatState::new();
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
         // Keyboard layout from the system's layout data (xkeyboard-config). Without it the
@@ -129,6 +133,7 @@ impl UnitState {
             pointer_visible: false,
             layout_class: crate::layout::LayoutClass::Compact,
             log_input: kernel_option("unit.display_check=1"),
+            touch_timing: crate::timing::TouchTiming::new(kernel_option("unit.touch_timing=1")),
             backend: None,
         }
     }

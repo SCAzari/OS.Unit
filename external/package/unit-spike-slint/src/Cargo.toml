@@ -1,0 +1,21 @@
+[package]
+name = "unit-spike-slint"
+version = "0.1.0"
+edition = "2024"
+# Buildroot's Rust; the resolver picks dependency versions that build with it.
+rust-version = "1.88"
+license = "LicenseRef-Unit-Proprietary"
+description = "Toolkit spike (UNIT-OS-WP-0010): the sign-in and settings screens in Slint"
+publish = false
+
+[dependencies.slint]
+# 1.16.1: the newest Slint that builds with Rust 1.88 (1.17 and later need 1.92).
+version = "=1.16.1"
+default-features = false
+features = ["std", "compat-1-2", "backend-winit-wayland", "renderer-femtovg", "accessibility"]
+
+[build-dependencies]
+slint-build = "=1.16.1"
+
+[profile.release]
+lto = "thin"

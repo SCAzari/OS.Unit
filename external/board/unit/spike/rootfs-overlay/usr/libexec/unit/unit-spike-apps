@@ -1,0 +1,52 @@
+#!/bin/sh
+# Runs inside the spike's D-Bus session (see unit-spike-session).
+opt() { tr ' ' '\n' </proc/cmdline | sed -n "s/^$1=//p" | tail -n 1; }
+TK=$(opt unit.spike); SCREEN=$(opt unit.spike_screen); TEST=$(opt unit.spike_test); IM=$(opt unit.spike_im)
+SCREEN=${SCREEN:-sign-in}
+log() { echo "unit-spike-session: $*"; }
+
+# The accessibility bus is started on demand by at-spi-bus-launcher. Tell toolkits that wait for
+# assistive technology (AccessKit, used by Slint) that it is on, as a screen reader would.
+busctl --address="$DBUS_SESSION_BUS_ADDRESS" call org.a11y.Bus /org/a11y/bus org.a11y.Bus GetAddress >/dev/null 2>&1
+busctl --address="$DBUS_SESSION_BUS_ADDRESS" set-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled b true
+busctl --address="$DBUS_SESSION_BUS_ADDRESS" set-property org.a11y.Bus /org/a11y/bus org.a11y.Status ScreenReaderEnabled b true
+log "accessibility bus $(busctl --address="$DBUS_SESSION_BUS_ADDRESS" get-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled 2>&1)"
+
+if [ "$TEST" = ime ]; then
+	# Fcitx5 with Anthy active from the start (issue #8 answer 8d: Anthy for the spike only).
+	mkdir -p "$HOME/.config/fcitx5"
+	cat > "$HOME/.config/fcitx5/profile" <<'PROFILE'
+[Groups/0]
+Name=Default
+Default Layout=us
+DefaultIM=anthy
+
+[Groups/0/Items/0]
+Name=keyboard-us
+Layout=
+
+[Groups/0/Items/1]
+Name=anthy
+Layout=
+
+[GroupOrder]
+0=Default
+PROFILE
+	printf '[Behavior]\nActiveByDefault=True\n' > "$HOME/.config/fcitx5/config"
+	fcitx5 -d --replace >/run/unit-spike-fcitx5.log 2>&1
+	sleep 3
+	log "fcitx5 $(pidof fcitx5 >/dev/null && echo running || echo 'not running')"
+	[ "$IM" = fcitx ] && export QT_IM_MODULE=fcitx
+fi
+
+# Shared with unit-spike-check, which runs the probe in this session.
+{ echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"; echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+  echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"; } > /run/unit-spike.env.tmp && mv /run/unit-spike.env.tmp /run/unit-spike.env
+
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+log "starting $TK $SCREEN (test $TEST${IM:+, im $IM})"
+case "$TK" in
+	qt) exec unit-spike-qt "$SCREEN" ;;
+	slint) exec unit-spike-slint "$SCREEN" ;;
+	*) log "unknown toolkit $TK"; sleep infinity ;;
+esac

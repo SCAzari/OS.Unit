@@ -1,0 +1,255 @@
+
+// Toolkit spike (UNIT-OS-WP-0010): Slint version of the spike screens, after spike/screens.json.
+import { Theme, StatusBar, Glass, Control, RadioControl, KeyButton, PillButton, SettingsRow, Choice, Swatch, UnitSlider, NavButton, FocusRing } from "common.slint";
+
+// SC13 Sign in, used as the lock screen (issue #8 answer 8a), after mock-up P01.
+// Declared switch-scanning order (spike/screens.json): a11y, k1, k2, k3, k4, k5, k6, k7, k8, k9, k0, del, switch-profile, forgot.
+component SignIn inherits Rectangle {
+    in-out property <int> digits: 0;
+    public function scan-start() { a11y.take-focus(); }
+    background: @linear-gradient(180deg, (Theme.dark ? #16201F : #EFEDE8) 0%, (Theme.dark ? #121A1A : #ECEBE6) 55%, (Theme.dark ? #0F1716 : #E3ECEA) 100%);
+    Rectangle { x: 260px; y: 520px; width: 220px; height: 220px; border-radius: 110px; background: Theme.accent-soft; opacity: 0.8; }
+    Rectangle { x: -60px; y: 180px; width: 200px; height: 200px; border-radius: 100px; background: Theme.accent-soft; opacity: 0.6; }
+    // Holds focus when the screen opens; the first Tab starts scanning at the declared first element.
+    starter := FocusScope { focus-on-click: false; focus-on-tab-navigation: false; width: 0; height: 0;
+        key-pressed(e) => { if (e.text == Key.Tab) { root.scan-start(); return accept; } reject } }
+    init => { starter.focus(); }
+    status := StatusBar { y: 0; width: parent.width; }
+    clock := Text { y: 72px; width: parent.width; horizontal-alignment: center; text: "09:41"; color: Theme.text;
+        font-size: 72px; font-weight: 700; accessible-label: "Time, 09:41"; }
+    date := Text { y: clock.y + clock.preferred-height; width: parent.width; horizontal-alignment: center;
+        text: "Saturday 14 November"; color: Theme.secondary; font-size: 20px; }
+    note := Glass {
+        x: 20px; y: date.y + date.preferred-height + 40px; width: parent.width - 40px; height: 64px;
+        accessible-role: text; accessible-label: "1 new message. Sign in to see details";
+        Rectangle { x: 16px; y: 15px; width: 34px; height: 34px; border-radius: 10px; background: Theme.accent-soft;
+            Text { text: "✉"; color: Theme.accent; font-size: 18px; accessible-role: none; } }
+        Text { x: 64px; y: 12px; text: "1 new message"; color: Theme.text; font-size: 16px; font-weight: 600; accessible-role: none; }
+        Text { x: 64px; y: 34px; text: "Sign in to see details"; color: Theme.text; font-size: 14px; accessible-role: none; }
+    }
+    card := Glass {
+        x: 20px; y: note.y + note.height + 20px; width: parent.width - 40px; height: 420px;
+        Rectangle { x: 24px; y: 24px; width: 48px; height: 48px; border-radius: 24px; background: Theme.accent;
+            Text { text: "P"; color: Theme.on-accent; font-size: 22px; font-weight: 600; accessible-role: none; } }
+        Text { x: 86px; y: 24px; text: "Profile 1"; color: Theme.text; font-size: 20px; font-weight: 600; }
+        Text { x: 86px; y: 50px; text: "Enter your PIN"; color: Theme.text; font-size: 14px; }
+        HorizontalLayout {
+            x: parent.width - 24px - 6 * 12px - 5 * 8px; y: 40px; spacing: 8px; height: 12px;
+            accessible-role: text; accessible-label: "PIN, " + root.digits + " of 6 digits entered";
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 0 ? Theme.text : transparent; }
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 1 ? Theme.text : transparent; }
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 2 ? Theme.text : transparent; }
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 3 ? Theme.text : transparent; }
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 4 ? Theme.text : transparent; }
+            Rectangle { width: 12px; height: 12px; border-radius: 6px; border-width: 1.5px; border-color: Theme.text; background: root.digits > 5 ? Theme.text : transparent; }
+        }
+        k1 := KeyButton { x: 24px; y: 96px; label: "1"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k2.take-focus(); } tab-prev => { a11y.take-focus(); } }
+        k2 := KeyButton { x: 136px; y: 96px; label: "2"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k3.take-focus(); } tab-prev => { k1.take-focus(); } }
+        k3 := KeyButton { x: 248px; y: 96px; label: "3"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k4.take-focus(); } tab-prev => { k2.take-focus(); } }
+        k4 := KeyButton { x: 24px; y: 164px; label: "4"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k5.take-focus(); } tab-prev => { k3.take-focus(); } }
+        k5 := KeyButton { x: 136px; y: 164px; label: "5"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k6.take-focus(); } tab-prev => { k4.take-focus(); } }
+        k6 := KeyButton { x: 248px; y: 164px; label: "6"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k7.take-focus(); } tab-prev => { k5.take-focus(); } }
+        k7 := KeyButton { x: 24px; y: 232px; label: "7"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k8.take-focus(); } tab-prev => { k6.take-focus(); } }
+        k8 := KeyButton { x: 136px; y: 232px; label: "8"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k9.take-focus(); } tab-prev => { k7.take-focus(); } }
+        k9 := KeyButton { x: 248px; y: 232px; label: "9"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { k0.take-focus(); } tab-prev => { k8.take-focus(); } }
+        k0 := KeyButton { x: 136px; y: 300px; label: "0"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { del.take-focus(); } tab-prev => { k9.take-focus(); } }
+        del := KeyButton { x: 248px; y: 300px; label: "⌫"; name: "Delete digit"; activated => { root.digits = Math.max(0, root.digits - 1); } tab-next => { switch-profile.take-focus(); } tab-prev => { k0.take-focus(); } }
+        forgot := PillButton { x: 24px; y: parent.height - 72px; label: "Forgot PIN?"; tab-next => { a11y.take-focus(); } tab-prev => { switch-profile.take-focus(); } }
+        switch-profile := PillButton { x: parent.width - 24px - self.width; y: parent.height - 72px; label: "☺  Switch"; name: "Switch profile"; tab-next => { forgot.take-focus(); } tab-prev => { del.take-focus(); } }
+    }
+    a11y := NavButton {
+        x: 20px; y: parent.height - 80px; glyph: "♿"; name: "Accessibility"; background: self.pressed ? Theme.accent-soft : Theme.surface;
+        tab-next => { k1.take-focus(); } tab-prev => { forgot.take-focus(); }
+    }
+}
+
+// SC04 Settings home from the wireframe, with a test-only search field (issue #8 answer 8c).
+// Declared scanning order: the rows, Back, Home, Open applications, then the test field.
+component SettingsHome inherits Rectangle {
+    callback open-display();
+    public function scan-start() { row0.take-focus(); }
+    background: Theme.background;
+    // Holds focus when the screen opens; the first Tab starts scanning at the declared first element.
+    starter := FocusScope { focus-on-click: false; focus-on-tab-navigation: false; width: 0; height: 0;
+        key-pressed(e) => { if (e.text == Key.Tab) { root.scan-start(); return accept; } reject } }
+    init => { starter.focus(); }
+    status := StatusBar { y: 0; width: parent.width; }
+    heading := Text { x: 20px; y: 48px; text: "Settings"; color: Theme.text; font-size: 28px; font-weight: 700; accessible-role: text; }
+    search-box := Rectangle {
+        x: 20px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 40px; height: 48px;
+        border-radius: 24px; background: Theme.surface2;
+        border-width: search.has-focus ? 2px : 1.5px; border-color: search.has-focus ? Theme.accent : Theme.secondary.with-alpha(0.5);
+        FocusScope {
+            focus-on-click: false; focus-on-tab-navigation: false;
+            capture-key-pressed(e) => {
+                if (e.text == Key.Tab) { row0.take-focus(); return accept; }
+                if (e.text == Key.Backtab) { apps.take-focus(); return accept; }
+                reject
+            }
+            search := TextInput {
+                x: 20px; width: parent.width - 40px; height: parent.height; vertical-alignment: center;
+                color: Theme.text; font-size: 16px; single-line: true;
+                accessible-label: "Search settings (test field)";
+            }
+        }
+        if search.text == "": Text { x: 20px; height: parent.height; vertical-alignment: center;
+            text: "Search settings (test field)"; color: Theme.secondary; font-size: 16px; accessible-role: none; }
+        if search.has-focus: FocusRing { control-radius: 24px; control-width: parent.width; control-height: parent.height; }
+    }
+    list := Rectangle {
+        x: 12px; y: search-box.y + 64px; width: parent.width - 24px; height: 9 * 56px + 8px;
+        border-radius: Theme.radius * 1px; background: Theme.surface;
+        VerticalLayout {
+            padding-top: 4px;
+            row0 := SettingsRow { title: "Wi-Fi and network"; tag: "administrator";  tab-next => { row1.take-focus(); } tab-prev => { search.focus(); } }
+            row1 := SettingsRow { title: "Bluetooth and devices"; tag: "administrator";  tab-next => { row2.take-focus(); } tab-prev => { row0.take-focus(); } }
+            row2 := SettingsRow { title: "Sound and audio output"; tag: "";  tab-next => { row3.take-focus(); } tab-prev => { row1.take-focus(); } }
+            row3 := SettingsRow { title: "Display and appearance"; tag: ""; activated => { root.open-display(); } tab-next => { row4.take-focus(); } tab-prev => { row2.take-focus(); } }
+            row4 := SettingsRow { title: "Home and navigation"; tag: "";  tab-next => { row5.take-focus(); } tab-prev => { row3.take-focus(); } }
+            row5 := SettingsRow { title: "Battery and performance"; tag: "administrator sets limits";  tab-next => { row6.take-focus(); } tab-prev => { row4.take-focus(); } }
+            row6 := SettingsRow { title: "Profiles and sign-in"; tag: "";  tab-next => { row7.take-focus(); } tab-prev => { row5.take-focus(); } }
+            row7 := SettingsRow { title: "Privacy and accessibility"; tag: "";  tab-next => { row8.take-focus(); } tab-prev => { row6.take-focus(); } }
+            row8 := SettingsRow { title: "Storage, Updates, About"; tag: "";  tab-next => { back.take-focus(); } tab-prev => { row7.take-focus(); } }
+        }
+    }
+    nav := Rectangle {
+        x: (parent.width - 220px) / 2; y: parent.height - 76px; width: 220px; height: 60px; border-radius: 30px;
+        background: Theme.surface2; border-width: 1px; border-color: Theme.secondary.with-alpha(0.2);
+        HorizontalLayout { alignment: center; spacing: 8px; padding-top: 2px;
+            back := NavButton { glyph: "‹"; name: "Back"; tab-next => { home.take-focus(); } tab-prev => { row8.take-focus(); } }
+            home := NavButton { glyph: "○"; name: "Home"; tab-next => { apps.take-focus(); } tab-prev => { back.take-focus(); } }
+            apps := NavButton { glyph: "▢"; name: "Open applications"; tab-next => { search.focus(); } tab-prev => { home.take-focus(); } }
+        }
+    }
+}
+
+// Settings > Display and appearance, after mock-up P07 (issue #8 answer 8b). Changes apply at once.
+// Scanning order is the layout order (spike/screens.json).
+component DisplayAppearance inherits Rectangle {
+    callback back();
+    public function scan-start() { theme0.take-focus(); }
+    background: Theme.background;
+    // Holds focus when the screen opens; the first Tab starts scanning at the declared first element.
+    starter := FocusScope { focus-on-click: false; focus-on-tab-navigation: false; width: 0; height: 0;
+        key-pressed(e) => { if (e.text == Key.Tab) { root.scan-start(); return accept; } reject } }
+    init => { starter.focus(); }
+    status := StatusBar { y: 0; width: parent.width; }
+    crumb := Text { x: 20px; y: 44px; text: "Settings"; color: Theme.secondary; font-size: 14px; }
+    heading := Text { x: 20px; y: crumb.y + crumb.preferred-height; text: "Display and appearance"; color: Theme.text; font-size: 28px; font-weight: 700; }
+    card := Rectangle {
+        x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; height: body.preferred-height + 32px;
+        border-radius: Theme.radius * 1px; background: Theme.surface;
+        body := VerticalLayout {
+            x: 16px; y: 16px; width: parent.width - 32px; spacing: 14px;
+            Text { text: "THEME"; color: Theme.secondary; font-size: 14px; font-weight: 700; letter-spacing: 1px; accessible-label: "Theme"; }
+            HorizontalLayout { spacing: 8px;
+            theme0 := Choice { width: (body.width - 16px) / 3; height: 90px; label: "Daylight"; checked: Theme.theme-index == 0;
+                background: #E9ECE8; label-color: #1E2626; border-radius: Theme.radius * 0.75px;
+                border-width: self.checked ? 2px : 1px; border-color: self.checked ? Theme.accent : #0000001A;
+                activated => { Theme.theme-index = 0; } tab-next => { theme1.take-focus(); } tab-prev => { apps.take-focus(); }
+                Rectangle { x: (parent.width - 40px) / 2; y: 34px; width: 40px; height: 10px; border-radius: 5px; background: #2E8A80; } }
+            theme1 := Choice { width: (body.width - 16px) / 3; height: 90px; label: "Night Shift"; checked: Theme.theme-index == 1;
+                background: #1F2340; label-color: #FFFFFF; border-radius: Theme.radius * 0.75px;
+                border-width: self.checked ? 2px : 1px; border-color: self.checked ? Theme.accent : #0000001A;
+                activated => { Theme.theme-index = 1; } tab-next => { theme2.take-focus(); } tab-prev => { theme0.take-focus(); }
+                Rectangle { x: (parent.width - 40px) / 2; y: 34px; width: 40px; height: 10px; border-radius: 5px; background: #7A6CF0; } }
+            theme2 := Choice { width: (body.width - 16px) / 3; height: 90px; label: "Pebble"; checked: Theme.theme-index == 2;
+                background: #FBF8F3; label-color: #1E2626; border-radius: Theme.radius * 0.75px;
+                border-width: self.checked ? 2px : 1px; border-color: self.checked ? Theme.accent : #0000001A;
+                activated => { Theme.theme-index = 2; } tab-next => { mode0.take-focus(); } tab-prev => { theme1.take-focus(); }
+                Rectangle { x: (parent.width - 40px) / 2; y: 34px; width: 40px; height: 10px; border-radius: 5px; background: #EE7559; } }
+            }
+            HorizontalLayout { height: 52px;
+                Text { text: "Mode"; color: Theme.text; font-size: 16px; vertical-alignment: center; }
+                Rectangle { width: 200px; height: 48px; border-radius: 24px; background: Theme.surface2;
+                    HorizontalLayout { alignment: center; padding-top: 4px; padding-bottom: 4px;
+                mode0 := Choice { width: 64px; height: 40px; border-radius: 20px; show-label: false; label: "Light";
+                    checked: 0 == (Theme.dark ? 1 : 0); background: self.checked ? Theme.surface : transparent;
+                    activated => { Theme.dark = false; } tab-next => { mode1.take-focus(); } tab-prev => { theme2.take-focus(); }
+                    Text { text: "Light"; color: parent.checked ? Theme.text : Theme.secondary; font-size: 14px; font-weight: 600;
+                           horizontal-alignment: center; vertical-alignment: center; accessible-role: none; } }
+                mode1 := Choice { width: 64px; height: 40px; border-radius: 20px; show-label: false; label: "Dark";
+                    checked: 1 == (Theme.dark ? 1 : 0); background: self.checked ? Theme.surface : transparent;
+                    activated => { Theme.dark = true; } tab-next => { mode2.take-focus(); } tab-prev => { mode0.take-focus(); }
+                    Text { text: "Dark"; color: parent.checked ? Theme.text : Theme.secondary; font-size: 14px; font-weight: 600;
+                           horizontal-alignment: center; vertical-alignment: center; accessible-role: none; } }
+                mode2 := Choice { width: 64px; height: 40px; border-radius: 20px; show-label: false; label: "Auto";
+                    checked: 2 == (Theme.dark ? 1 : 0); background: self.checked ? Theme.surface : transparent;
+                    activated => {  } tab-next => { sw0.take-focus(); } tab-prev => { mode1.take-focus(); }
+                    Text { text: "Auto"; color: parent.checked ? Theme.text : Theme.secondary; font-size: 14px; font-weight: 600;
+                           horizontal-alignment: center; vertical-alignment: center; accessible-role: none; } }
+                    }
+                }
+            }
+            Text { text: "Accent colour"; color: Theme.text; font-size: 16px; }
+            HorizontalLayout { alignment: start;
+            sw0 := Swatch { name: "Teal"; swatch-color: Theme.accents[0]; checked: Theme.accent-index == 0; activated => { Theme.accent-index = 0; } tab-next => { sw1.take-focus(); } tab-prev => { mode2.take-focus(); } }
+            sw1 := Swatch { name: "Blue"; swatch-color: Theme.accents[1]; checked: Theme.accent-index == 1; activated => { Theme.accent-index = 1; } tab-next => { sw2.take-focus(); } tab-prev => { sw0.take-focus(); } }
+            sw2 := Swatch { name: "Violet"; swatch-color: Theme.accents[2]; checked: Theme.accent-index == 2; activated => { Theme.accent-index = 2; } tab-next => { sw3.take-focus(); } tab-prev => { sw1.take-focus(); } }
+            sw3 := Swatch { name: "Pink"; swatch-color: Theme.accents[3]; checked: Theme.accent-index == 3; activated => { Theme.accent-index = 3; } tab-next => { sw4.take-focus(); } tab-prev => { sw2.take-focus(); } }
+            sw4 := Swatch { name: "Orange"; swatch-color: Theme.accents[4]; checked: Theme.accent-index == 4; activated => { Theme.accent-index = 4; } tab-next => { sw5.take-focus(); } tab-prev => { sw3.take-focus(); } }
+            sw5 := Swatch { name: "Amber"; swatch-color: Theme.accents[5]; checked: Theme.accent-index == 5; activated => { Theme.accent-index = 5; } tab-next => { sw6.take-focus(); } tab-prev => { sw4.take-focus(); } }
+            sw6 := Swatch { name: "Green"; swatch-color: Theme.accents[6]; checked: Theme.accent-index == 6; activated => { Theme.accent-index = 6; } tab-next => { glass-slider.take-focus(); } tab-prev => { sw5.take-focus(); } }
+            }
+            HorizontalLayout {
+                Text { text: "Glass"; color: Theme.text; font-size: 16px; accessible-role: none; }
+                Text { text: "Readability limit ¦"; color: Theme.secondary; font-size: 14px; horizontal-alignment: right; accessible-role: none; }
+            }
+            glass-slider := UnitSlider { name: "Glass"; minimum: 0; maximum: 100; value: Theme.glass; marker: Theme.glass-limit;
+                changed value => { Theme.glass = self.value; } tab-next => { corner-slider.take-focus(); } tab-prev => { sw6.take-focus(); } }
+            HorizontalLayout {
+                Text { text: "Corner rounding"; color: Theme.text; font-size: 16px; accessible-role: none; }
+                Text { text: Math.round(Theme.radius) + " px"; color: Theme.secondary; font-size: 14px; horizontal-alignment: right; accessible-role: none; }
+            }
+            corner-slider := UnitSlider { name: "Corner rounding"; minimum: 0; maximum: 32; value: Theme.radius;
+                changed value => { Theme.radius = self.value; } tab-next => { shape0.take-focus(); } tab-prev => { glass-slider.take-focus(); } }
+            Text { text: "Icon shape"; color: Theme.text; font-size: 16px; }
+            HorizontalLayout { alignment: start; spacing: 12px;
+            shape0 := Choice { width: 48px; height: 48px; show-label: false; label: "Square"; checked: Theme.shape-index == 0;
+                border-radius: 0px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;
+                activated => { Theme.shape-index = 0; } tab-next => { shape1.take-focus(); } tab-prev => { corner-slider.take-focus(); } }
+            shape1 := Choice { width: 48px; height: 48px; show-label: false; label: "Rounded"; checked: Theme.shape-index == 1;
+                border-radius: 10px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;
+                activated => { Theme.shape-index = 1; } tab-next => { shape2.take-focus(); } tab-prev => { shape0.take-focus(); } }
+            shape2 := Choice { width: 48px; height: 48px; show-label: false; label: "Squircle"; checked: Theme.shape-index == 2;
+                border-radius: 16px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;
+                activated => { Theme.shape-index = 2; } tab-next => { shape3.take-focus(); } tab-prev => { shape1.take-focus(); } }
+            shape3 := Choice { width: 48px; height: 48px; show-label: false; label: "Circle"; checked: Theme.shape-index == 3;
+                border-radius: 24px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;
+                activated => { Theme.shape-index = 3; } tab-next => { shape4.take-focus(); } tab-prev => { shape2.take-focus(); } }
+            shape4 := Choice { width: 48px; height: 48px; show-label: false; label: "Teardrop"; checked: Theme.shape-index == 4;
+                border-radius: 24px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;
+                activated => { Theme.shape-index = 4; } tab-next => { font-row.take-focus(); } tab-prev => { shape3.take-focus(); } }
+            }
+            font-row := Control { height: 52px; name: "Font, Inter"; border-radius: Theme.radius * 0.5px;
+                background: self.pressed ? Theme.accent-soft : transparent; tab-next => { back.take-focus(); } tab-prev => { shape4.take-focus(); }
+                Text { x: 0; height: parent.height; vertical-alignment: center; text: "Font"; color: Theme.text; font-size: 16px; accessible-role: none; }
+                Text { x: parent.width - self.preferred-width; height: parent.height; vertical-alignment: center; text: "Inter  ›"; color: Theme.secondary; font-size: 16px; accessible-role: none; }
+            }
+        }
+    }
+    Text { x: 20px; y: card.y + card.height + 12px; width: parent.width - 40px; wrap: word-wrap;
+        text: "Changes apply at once, on the touchscreen and in VR. Reset to default returns to Daylight.";
+        color: Theme.secondary; font-size: 14px; }
+    nav := Rectangle {
+        x: (parent.width - 220px) / 2; y: parent.height - 76px; width: 220px; height: 60px; border-radius: 30px;
+        background: Theme.surface2; border-width: 1px; border-color: Theme.secondary.with-alpha(0.2);
+        HorizontalLayout { alignment: center; spacing: 8px; padding-top: 2px;
+            back := NavButton { glyph: "‹"; name: "Back"; activated => { root.back(); } tab-next => { home.take-focus(); } tab-prev => { font-row.take-focus(); } }
+            home := NavButton { glyph: "○"; name: "Home"; tab-next => { apps.take-focus(); } tab-prev => { back.take-focus(); } }
+            apps := NavButton { glyph: "▢"; name: "Open applications"; tab-next => { theme0.take-focus(); } tab-prev => { home.take-focus(); } }
+        }
+    }
+}
+
+export component SpikeWindow inherits Window {
+    in-out property <string> page: "sign-in";
+    title: page == "sign-in" ? "Sign in" : (page == "display" ? "Display and appearance" : "Settings");
+    preferred-width: 412px;
+    preferred-height: 893px;
+    default-font-family: "Inter";
+    background: Theme.background;
+    if root.page == "sign-in": SignIn { width: parent.width; height: parent.height; }
+    if root.page == "settings": SettingsHome { width: parent.width; height: parent.height; open-display => { root.page = "display"; } }
+    if root.page == "display": DisplayAppearance { width: parent.width; height: parent.height; back => { root.page = "settings"; } }
+}

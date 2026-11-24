@@ -27,7 +27,11 @@ harness:
 display:
 	scripts/qemu-display.sh $(O)/images
 
+# Toolkit spike tests (UNIT-OS-WP-0010; spike branch only): make UNIT_IMAGE=unit_qemu_x86_64_spike spike
+spike:
+	scripts/qemu-spike.sh $(O)/images
+
 clean:
 	rm -rf $(O)
 
-.PHONY: all smoke harness display clean menuconfig savedefconfig linux-menuconfig legal-info source
+.PHONY: all smoke harness display spike clean menuconfig savedefconfig linux-menuconfig legal-info source

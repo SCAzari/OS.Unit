@@ -105,6 +105,12 @@ impl UnitState {
                 }
                 self.focus_window_at(pos);
                 let under = self.surface_under(pos);
+                self.touch_timing.touch_down(
+                    event.time(),
+                    under.as_ref().and_then(|(s, _)| {
+                        smithay::reexports::wayland_server::Resource::client(s).map(|c| c.id())
+                    }),
+                );
                 if let Some(touch) = self.seat.get_touch() {
                     touch.down(
                         self,
@@ -138,6 +144,7 @@ impl UnitState {
                 if self.log_input {
                     tracing::info!("input: touch up");
                 }
+                self.touch_timing.touch_up();
                 if let Some(touch) = self.seat.get_touch() {
                     touch.up(
                         self,

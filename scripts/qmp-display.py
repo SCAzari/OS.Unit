@@ -88,27 +88,45 @@ def report(line, good):
 def near(px, colour, tol=8):
     return all(abs(a - b) <= tol for a, b in zip(px, colour))
 
-def pixels_of(img, colour):
+def classify(img):
+    """Pixel positions of the pointer colour, and of anything that is neither background nor pointer."""
     w, h, p = img
-    return [(i // 3 % w, i // 3 // w) for i in range(0, w * h * 3, 3) if near(p[i:i + 3], colour)]
+    pointer, other = [], []
+    for i in range(0, w * h * 3, 3):
+        px = p[i:i + 3]
+        if near(px, BACKGROUND):
+            continue
+        (pointer if near(px, POINTER) else other).append((i // 3 % w, i // 3 // w))
+    return pointer, other
 
 def check_picture(name, img, pointer_at=None):
-    """Background over at least 90% of the display; if pointer_at (absolute x, y) is given, the
-    pointer square drawn there (its top-left corner at the pointer position, within 6 pixels)."""
+    """The whole display is background, except, if pointer_at (absolute x, y) is given, one solid
+    pointer square of POINTER_PX pixels (within 1) with its top-left corner at the pointer position
+    (within 6 pixels). Any other pixel, such as a partly drawn frame (UNIT-OS-ISS-0020), fails."""
     if img is None:
         report(f"PICTURE: {name}: no screenshot", False); return
     w, h, _ = img
-    bg = len(pixels_of(img, BACKGROUND)) / (w * h)
-    line, good = f"PICTURE: {name}: background {bg:.1%} of {w}x{h}", bg >= 0.9
+    pts, other = classify(img)
+    bg = 1 - (len(pts) + len(other)) / (w * h)
+    line = f"PICTURE: {name}: background {bg:.3%} of {w}x{h}, {len(other)} other pixels"
+    good = not other
+    if other:
+        xs, ys = [p[0] for p in other], [p[1] for p in other]
+        line += f" in ({min(xs)}, {min(ys)})-({max(xs)}, {max(ys)})"
     if pointer_at:
         ex, ey = pointer_at[0] / 32767 * w, pointer_at[1] / 32767 * h
-        pts = pixels_of(img, POINTER)
         if pts:
             x0, y0 = min(p[0] for p in pts), min(p[1] for p in pts)
-            good = good and abs(x0 - ex) <= 6 and abs(y0 - ey) <= 6 and len(pts) >= POINTER_PX ** 2 // 2
-            line += f", pointer {len(pts)} pixels at ({x0}, {y0}), expected ({ex:.0f}, {ey:.0f})"
+            bw = max(p[0] for p in pts) - x0 + 1
+            bh = max(p[1] for p in pts) - y0 + 1
+            good = (good and abs(x0 - ex) <= 6 and abs(y0 - ey) <= 6
+                    and abs(bw - POINTER_PX) <= 1 and abs(bh - POINTER_PX) <= 1 and len(pts) == bw * bh)
+            line += (f", pointer {bw}x{bh} ({len(pts)} pixels) at ({x0}, {y0}),"
+                     f" expected {POINTER_PX}x{POINTER_PX} at ({ex:.0f}, {ey:.0f})")
         else:
             good, line = False, line + f", no pointer, expected at ({ex:.0f}, {ey:.0f})"
+    elif pts:
+        good, line = False, line + f", {len(pts)} pointer pixels where no pointer is expected"
     report(line, good)
 
 def shot(q, name):
@@ -161,7 +179,8 @@ q.cmd("input-send-event", events=[mtt("begin", "x", T[0]), mtt("data", "x", T[0]
 time.sleep(0.3)
 q.cmd("input-send-event", events=[mtt("end", "x", T[0], -1)])
 time.sleep(1.5)
-check_picture("4-after-touch", shot(q, "4-after-touch"))
+# Touch shows no cursor of its own and does not move the pointer: it is still at B.
+check_picture("4-after-touch", shot(q, "4-after-touch"), B)
 if wait_log("UNIT-DISPLAY: PASS", 60):
     check_input("pointer press", r"input: pointer press", *B)
     check_input("touch down", r"input: touch down", *T)

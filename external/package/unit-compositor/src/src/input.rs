@@ -1,8 +1,10 @@
 //! Input from libinput: keyboard, pointer (relative and absolute) and touch.
 //!
-//! Pressing or touching a window raises it and gives it keyboard focus. Presses, releases and
-//! touches are logged (positions only, never key codes), so the emulation checks can confirm
-//! that input reaches the compositor.
+//! Pressing or touching a window raises it and gives it keyboard focus. Only on a display-check
+//! boot (unit.display_check=1) are presses, releases and touches logged with their positions, so
+//! the emulation check can confirm that input reaches the compositor. Otherwise no input is
+//! logged: the positions and timing of touches can reveal a PIN or typed text. Key codes are
+//! never logged.
 
 use smithay::{
     backend::input::{
@@ -50,13 +52,15 @@ impl UnitState {
                 let serial = SERIAL_COUNTER.next_serial();
                 let state = event.state();
                 if state == ButtonState::Pressed {
-                    tracing::info!(
-                        "input: pointer press at ({:.0}, {:.0})",
-                        self.pointer_location.x,
-                        self.pointer_location.y
-                    );
+                    if self.log_input {
+                        tracing::info!(
+                            "input: pointer press at ({:.0}, {:.0})",
+                            self.pointer_location.x,
+                            self.pointer_location.y
+                        );
+                    }
                     self.focus_window_at(self.pointer_location);
-                } else {
+                } else if self.log_input {
                     tracing::info!("input: pointer release");
                 }
                 if let Some(pointer) = self.seat.get_pointer() {
@@ -96,7 +100,9 @@ impl UnitState {
             InputEvent::TouchDown { event } => {
                 let Some(geo) = self.output_geometry() else { return };
                 let pos = event.position_transformed(geo.size) + geo.loc.to_f64();
-                tracing::info!("input: touch down at ({:.0}, {:.0})", pos.x, pos.y);
+                if self.log_input {
+                    tracing::info!("input: touch down at ({:.0}, {:.0})", pos.x, pos.y);
+                }
                 self.focus_window_at(pos);
                 let under = self.surface_under(pos);
                 if let Some(touch) = self.seat.get_touch() {
@@ -129,7 +135,9 @@ impl UnitState {
                 }
             }
             InputEvent::TouchUp { event } => {
-                tracing::info!("input: touch up");
+                if self.log_input {
+                    tracing::info!("input: touch up");
+                }
                 if let Some(touch) = self.seat.get_touch() {
                     touch.up(
                         self,
@@ -177,8 +185,10 @@ impl UnitState {
     fn clamp_to_output(&self, pos: Point<f64, Logical>) -> Point<f64, Logical> {
         match self.output_geometry() {
             Some(geo) => {
-                let max_x = (geo.loc.x + geo.size.w - 1) as f64;
-                let max_y = (geo.loc.y + geo.size.h - 1) as f64;
+                // A display less than one point wide or high keeps the pointer at its origin
+                // (f64::clamp panics if the maximum is below the minimum).
+                let max_x = (geo.loc.x + (geo.size.w - 1).max(0)) as f64;
+                let max_y = (geo.loc.y + (geo.size.h - 1).max(0)) as f64;
                 (pos.x.clamp(geo.loc.x as f64, max_x), pos.y.clamp(geo.loc.y as f64, max_y)).into()
             }
             None => pos,

@@ -67,6 +67,9 @@ const POINTER_SIZE: i32 = 14;
 const COLOR_FORMATS: &[Fourcc] = &[Fourcc::Argb8888, Fourcc::Xrgb8888, Fourcc::Abgr8888];
 /// Redraw check while nothing has changed (about 60 per second).
 const IDLE_REDRAW: Duration = Duration::from_millis(16);
+/// A queued frame whose vertical blank has not arrived after this long is treated as lost, so
+/// the display cannot stay frozen. Generous, because the emulated display can be slow.
+const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
 
 type GbmDrmCompositor =
     DrmCompositor<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
@@ -86,6 +89,8 @@ pub struct UdevData {
     pointer_id: Id,
     /// A frame has been queued and its vertical blank has not arrived yet.
     frame_pending: bool,
+    /// Number of the last queued frame, so the frame watchdog acts only on the frame it was set for.
+    frame_seq: u64,
     /// A redraw timer is already scheduled.
     redraw_scheduled: bool,
     /// How frames may use the display's hardware planes (none on the emulated GPU).
@@ -124,9 +129,7 @@ pub fn init(
     let node = DrmNode::from_file(fd.clone()).ok();
     let (mut drm, drm_notifier) = DrmDevice::new(fd.clone(), true)?;
     let mut frame_flags = FrameFlags::DEFAULT;
-    let render_wait = !std::fs::read_to_string("/proc/cmdline")
-        .map(|c| c.split_whitespace().any(|o| o == "unit.render_wait=0"))
-        .unwrap_or(false);
+    let render_wait = !crate::state::kernel_option("unit.render_wait=0");
     if !render_wait {
         tracing::warn!("render wait off (unit.render_wait=0): diagnostic test only");
     }
@@ -239,6 +242,7 @@ pub fn init(
             }
             state.render();
         }
+        // A vertical blank lost with the error is recovered by the frame watchdog.
         DrmEvent::Error(err) => tracing::error!("display error: {}", err),
     })?;
 
@@ -285,6 +289,7 @@ pub fn init(
         output,
         pointer_id: Id::new(),
         frame_pending: false,
+        frame_seq: 0,
         redraw_scheduled: false,
         frame_flags,
         render_wait,
@@ -402,7 +407,17 @@ impl UnitState {
         }
         if rendered {
             match backend.compositor.queue_frame(()) {
-                Ok(()) => backend.frame_pending = true,
+                Ok(()) => {
+                    backend.frame_pending = true;
+                    backend.frame_seq += 1;
+                    let seq = backend.frame_seq;
+                    let _ = backend
+                        .handle
+                        .insert_source(Timer::from_duration(FRAME_TIMEOUT), move |_, _, state| {
+                            state.frame_timed_out(seq);
+                            TimeoutAction::Drop
+                        });
+                }
                 Err(err) => tracing::warn!("queue frame: {:?}", err),
             }
         }
@@ -428,5 +443,33 @@ impl UnitState {
                     TimeoutAction::Drop
                 });
         }
+    }
+
+    /// Frame watchdog: if frame `seq` is still waiting for its vertical blank, the vertical blank
+    /// was lost (for example with a display error). Without this, Smithay keeps the frame pending,
+    /// every later frame waits behind it and the display stays frozen. Treats the frame as shown,
+    /// re-reads the display state so the next frame is a full commit, and redraws everything.
+    /// While the session is paused nothing is done; resuming the session resets the display.
+    /// If the lost vertical blank does arrive later, it is counted for the next frame: at worst
+    /// that one frame is taken as shown one refresh early.
+    fn frame_timed_out(&mut self, seq: u64) {
+        let Some(backend) = self.backend.as_mut() else { return };
+        if !backend.frame_pending || backend.frame_seq != seq || !backend.session.is_active() {
+            return;
+        }
+        tracing::warn!(
+            "frame {} not confirmed by the display after {} ms: redrawing in full",
+            seq,
+            FRAME_TIMEOUT.as_millis()
+        );
+        if let Err(err) = backend.compositor.frame_submitted() {
+            tracing::warn!("frame submission: {:?}", err);
+        }
+        if let Err(err) = backend.compositor.reset_state() {
+            tracing::warn!("display state reset: {}", err);
+        }
+        backend.compositor.reset_buffers();
+        backend.frame_pending = false;
+        self.render();
     }
 }

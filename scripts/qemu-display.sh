@@ -18,7 +18,8 @@ rm -f "$LOG"
 
 boot() { # name, extra kernel options
 	dir="$RES/$1"; log="$dir/serial.log"
-	mkdir -p "$dir"; rm -f "$dir/qmp.sock" "$log" "$dir/check.txt"
+	# Remove everything from an earlier run, screenshots included, so only this boot's pictures remain.
+	mkdir -p "$dir"; rm -f "$dir/qmp.sock" "$log" "$dir/check.txt" "$dir"/*.png "$dir"/*.ppm
 	timeout ${DISPLAY_TIMEOUT:-900} qemu-system-x86_64 $ACCEL -cpu max -m 3072 -smp 2 -M pc -no-reboot \
 		-display none -vga none -serial file:"$log" -qmp unix:"$dir/qmp.sock",server=on,wait=off \
 		-kernel "$IMG/bzImage" \

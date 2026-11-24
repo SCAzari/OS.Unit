@@ -66,6 +66,20 @@ pub enum DensitySource {
 /// screen, 1080 pixels at 412 points (Interface Design §5.1).
 pub const UNIT_PHONE_FACTOR: f64 = 1080.0 / 412.0;
 
+/// Pixels per inch accepted as a real screen density, from a reported size or a device description.
+const PPI_RANGE: std::ops::RangeInclusive<f64> = 60.0..=600.0;
+/// Pixels per inch that make one point on a built-in handheld screen.
+const HANDHELD_PPI_PER_POINT: f64 = 160.0;
+
+/// Whether a device description's density factor is within the densities accepted from a reported
+/// size (60 to 600 pixels per inch on a handheld screen: 0.375 to 3.75). Anything else, including
+/// infinity and NaN, is ignored, so a mistyped description cannot shrink the display to nothing.
+pub fn valid_density_factor(factor: f64) -> bool {
+    factor.is_finite()
+        && (*PPI_RANGE.start() / HANDHELD_PPI_PER_POINT..=*PPI_RANGE.end() / HANDHELD_PPI_PER_POINT)
+            .contains(&factor)
+}
+
 /// Density factor of a display (Interface Design §5.1).
 pub fn density(
     width_px: i32,
@@ -81,7 +95,7 @@ pub fn density(
     }
     if let Some(ppi) = reliable_ppi(width_px, height_px, size_mm) {
         let reference = match kind {
-            ScreenKind::BuiltInHandheld => 160.0,
+            ScreenKind::BuiltInHandheld => HANDHELD_PPI_PER_POINT,
             ScreenKind::External => 96.0,
         };
         let factor = (ppi / reference * 8.0).round() / 8.0;
@@ -115,7 +129,7 @@ fn reliable_ppi(width_px: i32, height_px: i32, (w_mm, h_mm): (u32, u32)) -> Opti
     }
     let diagonal_px = ((width_px as f64).powi(2) + (height_px as f64).powi(2)).sqrt();
     let ppi = diagonal_px / diagonal_in;
-    (60.0..=600.0).contains(&ppi).then_some(ppi)
+    PPI_RANGE.contains(&ppi).then_some(ppi)
 }
 
 /// Recognised placeholder sizes (Issue UNIT-OS-ISS-0019, confirmed by the Senior User on
@@ -139,8 +153,8 @@ pub fn layout_width(width_px: i32, factor: f64, scaling: f64) -> i32 {
 }
 
 /// Settings read from /etc/unit/display.conf (key=value lines): `density_factor` is the device
-/// description's exact factor for the built-in screen; `display_scaling` is the user's scaling,
-/// 1.0 to 2.0.
+/// description's exact factor for the built-in screen (ignored outside 0.375 to 3.75);
+/// `display_scaling` is the user's scaling, 1.0 to 2.0 (ignored if not a number).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DisplayConfig {
     pub density_factor: Option<f64>,
@@ -182,8 +196,11 @@ impl DisplayConfig {
                 continue;
             }
             let Ok(value) = value.trim().parse::<f64>() else { continue };
+            if !value.is_finite() {
+                continue;
+            }
             match key.trim() {
-                "density_factor" if value > 0.0 => config.density_factor = Some(value),
+                "density_factor" if valid_density_factor(value) => config.density_factor = Some(value),
                 "display_scaling" => config.display_scaling = value.clamp(1.0, 2.0),
                 _ => {}
             }
@@ -327,5 +344,23 @@ mod tests {
         assert_eq!(layout_width(720, d.factor, 1.0), 412);
         assert_eq!(LayoutClass::for_width(layout_width(720, d.factor, 1.0)), LayoutClass::Compact);
         assert_eq!(DisplayConfig::parse("").display_scaling, 1.0);
+    }
+
+    /// Review finding 5 (PR #5): density factors outside 0.375 to 3.75, infinity and NaN are
+    /// ignored, and a non-number scaling keeps 1.0, so the display can never become 0 points.
+    #[test]
+    fn config_out_of_range() {
+        for bad in ["inf", "-inf", "NaN", "0", "-1", "0.3", "3.76", "1500", "1e308"] {
+            let c = DisplayConfig::parse(&format!("density_factor = {bad}\n"));
+            assert_eq!(c.density_factor, None, "density_factor = {bad}");
+        }
+        for good in ["0.375", "1.74757281553", "2.621", "3.75"] {
+            let c = DisplayConfig::parse(&format!("density_factor = {good}\n"));
+            assert!(c.density_factor.is_some(), "density_factor = {good}");
+        }
+        for bad in ["NaN", "inf", "-inf"] {
+            let c = DisplayConfig::parse(&format!("display_scaling = {bad}\n"));
+            assert_eq!(c.display_scaling, 1.0, "display_scaling = {bad}");
+        }
     }
 }

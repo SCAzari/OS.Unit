@@ -53,7 +53,19 @@ pub struct UnitState {
     /// Layout class of the display (Requirement OS-52). Increment 1 lays out every class as compact.
     pub layout_class: crate::layout::LayoutClass,
 
+    /// Log pointer presses and touches with their positions. Only on a display-check boot
+    /// (unit.display_check=1): positions and timing of touches can reveal a PIN or typed text,
+    /// so they are never logged otherwise.
+    pub log_input: bool,
+
     pub backend: Option<UdevData>,
+}
+
+/// Whether the kernel command line has this exact option (for example "unit.display_check=1").
+pub fn kernel_option(option: &str) -> bool {
+    std::fs::read_to_string("/proc/cmdline")
+        .map(|c| c.split_whitespace().any(|o| o == option))
+        .unwrap_or(false)
 }
 
 impl UnitState {
@@ -116,6 +128,7 @@ impl UnitState {
             pointer_location: (0.0, 0.0).into(),
             pointer_visible: false,
             layout_class: crate::layout::LayoutClass::Compact,
+            log_input: kernel_option("unit.display_check=1"),
             backend: None,
         }
     }

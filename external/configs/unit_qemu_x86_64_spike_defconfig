@@ -71,6 +71,8 @@ BR2_PACKAGE_QT6SVG=y
 BR2_PACKAGE_QT6WAYLAND=y
 # Accessibility bus and speech for the reference reader; fonts from VDS §9.
 BR2_PACKAGE_AT_SPI2_CORE=y
+# The accessibility bus launcher aborts without a GSettings schema source.
+BR2_PACKAGE_GSETTINGS_DESKTOP_SCHEMAS=y
 BR2_PACKAGE_ESPEAK=y
 BR2_PACKAGE_FONTCONFIG=y
 BR2_PACKAGE_FONT_INTER=y

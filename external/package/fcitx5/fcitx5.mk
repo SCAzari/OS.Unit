@@ -32,13 +32,20 @@ FCITX5_CONF_OPTS = \
 	-DUSE_SYSTEM_PLASMA_WAYLAND_PROTOCOLS=OFF \
 	-DENABLE_LIBUUID=ON
 
-# Add-ons include Fcitx5's CMake helpers from FCITX_INSTALL_CMAKECONFIG_DIR, installed as the
-# absolute target path /usr/lib/cmake. In staging, point it at the copy beside the config file.
+# Fcitx5 exports absolute target paths in its CMake files, which a cross build of an add-on
+# would look for on the build machine. In staging only:
+# - add-ons include Fcitx5's CMake helpers from FCITX_INSTALL_CMAKECONFIG_DIR: point it at the
+#   copy beside the config file;
+# - the exported include folders (INTERFACE_INCLUDE_DIRECTORIES "/usr/include/...") point into
+#   staging.
+# The FCITX_INSTALL_* destinations stay target paths: add-ons install there under DESTDIR.
 define FCITX5_STAGING_CMAKECONFIG_DIR
 	$(SED) 's#^set(FCITX_INSTALL_CMAKECONFIG_DIR "/usr/lib/cmake")#get_filename_component(FCITX_INSTALL_CMAKECONFIG_DIR "$${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)#' \
 		$(STAGING_DIR)/usr/lib/cmake/Fcitx5Utils/Fcitx5UtilsConfig.cmake
 	grep -q 'get_filename_component(FCITX_INSTALL_CMAKECONFIG_DIR' \
 		$(STAGING_DIR)/usr/lib/cmake/Fcitx5Utils/Fcitx5UtilsConfig.cmake
+	$(SED) 's#INTERFACE_INCLUDE_DIRECTORIES "/usr/include#INTERFACE_INCLUDE_DIRECTORIES "$(STAGING_DIR)/usr/include#' \
+		$(STAGING_DIR)/usr/lib/cmake/Fcitx5*/*.cmake
 endef
 FCITX5_POST_INSTALL_STAGING_HOOKS += FCITX5_STAGING_CMAKECONFIG_DIR
 

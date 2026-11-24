@@ -8,7 +8,7 @@ FONT_NOTO_SANS_CJK_JP_VERSION = Sans2.004
 FONT_NOTO_SANS_CJK_JP_SITE = https://raw.githubusercontent.com/notofonts/noto-cjk/$(FONT_NOTO_SANS_CJK_JP_VERSION)/Sans/OTF/Japanese
 FONT_NOTO_SANS_CJK_JP_SOURCE = NotoSansCJKjp-Regular.otf
 FONT_NOTO_SANS_CJK_JP_EXTRA_DOWNLOADS = NotoSansCJKjp-Bold.otf \
-	https://raw.githubusercontent.com/notofonts/noto-cjk/$(FONT_NOTO_SANS_CJK_JP_VERSION)/Sans/LICENSE
+	https://raw.githubusercontent.com/notofonts/noto-cjk/$(FONT_NOTO_SANS_CJK_JP_VERSION)/LICENSE
 FONT_NOTO_SANS_CJK_JP_LICENSE = OFL-1.1
 FONT_NOTO_SANS_CJK_JP_LICENSE_FILES = LICENSE
 

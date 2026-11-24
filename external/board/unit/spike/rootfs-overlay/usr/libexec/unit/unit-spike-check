@@ -8,6 +8,7 @@ say() { echo "UNIT-SPIKE: $*"; }
 done_() { say "compositor and session log:"
 	journalctl -b -t unit-compositor -o cat --no-pager | grep -v 'touch-timing' | tail -n 40 | sed 's/^/UNIT-SPIKE-LOG: /'
 	[ -f /run/unit-spike-fcitx5.log ] && tail -n 20 /run/unit-spike-fcitx5.log | sed 's/^/UNIT-SPIKE-FCITX: /'
+	[ -f /run/unit-spike-gdb.log ] && grep -v '^\[New Thread\|^\[Thread .* exited' /run/unit-spike-gdb.log | tail -n 150 | sed 's/^/UNIT-SPIKE-GDB: /'
 	say "DONE"; sleep 3; systemctl poweroff --no-block; exit 0; }
 say "toolkit=$TK screen=$SCREEN test=$TEST"
 n=0; while [ ! -s /run/unit-spike.env ]; do sleep 1; n=$((n + 1)); [ $n -ge 240 ] && { say "FAIL no session"; done_; }; done

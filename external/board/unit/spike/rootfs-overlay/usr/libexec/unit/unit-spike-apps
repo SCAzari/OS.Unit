@@ -50,7 +50,14 @@ fi
 export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
 log "starting $TK $SCREEN (test $TEST${IM:+, im $IM})"
 case "$TK" in
-	qt) exec unit-spike-qt "$SCREEN" ;;
+	qt)
+		# unit.spike_gdb=1: run under the debugger and keep the backtrace of any crash.
+		if grep -qw 'unit.spike_gdb=1' /proc/cmdline; then
+			exec gdb -batch -q -ex 'set pagination off' -ex 'handle SIGPIPE nostop noprint' -ex run \
+				-ex 'echo === backtrace\n' -ex 'bt 40' -ex 'echo === threads\n' -ex 'thread apply all bt 12' \
+				--args unit-spike-qt "$SCREEN" >/run/unit-spike-gdb.log 2>&1
+		fi
+		exec unit-spike-qt "$SCREEN" ;;
 	slint) exec unit-spike-slint "$SCREEN" ;;
 	*) log "unknown toolkit $TK"; sleep infinity ;;
 esac

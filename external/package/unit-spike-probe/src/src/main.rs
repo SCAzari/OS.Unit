@@ -249,7 +249,11 @@ async fn dump(screen: &str) -> Res<bool> {
         let name = e["name"].as_str().unwrap_or_default();
         let roles = kinds(&spec, e["kind"].as_str().unwrap_or_default());
         // Depth 0 is the window, whose name is the screen title (the same as some headings).
-        let Some((pos, n)) = nodes.iter().enumerate().find(|(_, n)| n.depth > 0 && n.name == name) else {
+        // Where several elements share a name (a page and its heading), prefer the one whose
+        // role fits the expected kind.
+        let named: Vec<(usize, &Node)> =
+            nodes.iter().enumerate().filter(|(_, n)| n.depth > 0 && n.name == name).collect();
+        let Some(&(pos, n)) = named.iter().find(|(_, n)| roles.contains(&n.role)).or(named.first()) else {
             problems.push(format!("missing \"{}\"", name));
             continue;
         };
@@ -476,6 +480,17 @@ async fn extents(screen: &str, names: &[String]) -> Res<bool> {
     if let Ok((_, _, w, h)) = win.get_extents(CoordType::Window).await {
         println!("PROBE WINDOW {} {}", w, h);
     }
+    // The furthest right any element reaches, in the same coordinates as the element extents:
+    // a toolkit can report the window in points but its elements in physical pixels.
+    let mut span = 0;
+    for n in nodes.iter().filter(|n| n.depth > 0 && n.has_component) {
+        if let Ok(c) = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await {
+            if let Ok((x, _, w, _)) = c.get_extents(CoordType::Window).await {
+                span = span.max(x + w);
+            }
+        }
+    }
+    println!("PROBE SPAN {}", span);
     let mut all = true;
     for want in names {
         match nodes.iter().find(|n| &n.name == want && n.has_component) {

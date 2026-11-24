@@ -127,8 +127,12 @@ def extents(name):
     x, y, w, h = map(int, m.groups())
     # Toolkits report window coordinates in points or in physical pixels (buffer scale): the
     # probe prints the window width just before, which is 412 points on this display.
-    win = re.findall(r"PROBE WINDOW (\d+) (\d+)", serial()[:m.start()])
-    k = int(win[-1][0]) / (W / FACTOR) if win else 1.0
+    # Element coordinates may be in physical pixels even when the window is reported in points:
+    # take the scale from how far right the elements reach (412 points wide display), as a whole
+    # buffer scale.
+    before = serial()[:m.start()]
+    span = re.findall(r"PROBE SPAN (\d+)", before)
+    k = max(1, round(int(span[-1]) / (W / FACTOR))) if span else 1
     if abs(k - 1) > 0.05:
         print(f"extents of {name!r} in toolkit pixels at scale {k:.2f}: converted to points")
     x, y, w, h = x / k, y / k, w / k, h / k

@@ -61,7 +61,8 @@ Item {
         id: card
         backdrop: wallpaper
         anchors.top: note.bottom; anchors.topMargin: 20
-        x: 20; width: parent.width - 40; height: 420
+        // Mock-up P01: keypad rows on a 66-point pitch, buttons 24 points above the card's bottom.
+        x: 20; width: parent.width - 40; height: 432
         Rectangle {
             id: avatar
             x: 24; y: 24; width: 48; height: 48; radius: 24; color: Theme.accent
@@ -97,8 +98,8 @@ Item {
         }
         Grid {
             id: pad
-            x: 24; y: 96
-            columns: 3; columnSpacing: 12; rowSpacing: 12
+            x: 24; y: 92
+            columns: 3; columnSpacing: 12; rowSpacing: 10
             KeyButton { id: k1; label: "1"; width: 100; prevItem: a11y; nextItem: k2; onActivated: root.addDigit() }
             KeyButton { id: k2; label: "2"; width: 100; prevItem: k1; nextItem: k3; onActivated: root.addDigit() }
             KeyButton { id: k3; label: "3"; width: 100; prevItem: k2; nextItem: k4; onActivated: root.addDigit() }

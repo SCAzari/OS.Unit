@@ -41,7 +41,7 @@ Open now:
 - UNIT-OS-ISS-0020: the emulated display showed partly drawn frames. Fix: wait for drawing when
   Smithay's `RenderFrameResult::needs_sync()` is true; no hardware planes on the emulated GPU so the
   screenshots show the whole picture. A/B evidence: `make display` runs one extra boot with
-  `unit.render_wait=0`. Can close for emulation (24 Nov 2026): CI run 45297755440 on the merged
+  `unit.render_wait=0`. Closed for emulation on 24 Nov 2026: CI run 45297755440 on the merged
   code passed 3 cold boots under the strict picture check, and the A/B boot failed with a partly
   drawn start-up frame. Still to confirm on purchased hardware (DEC-0105, DEC-0107).
 - UNIT-OS-ISS-0019: monitors reporting placeholder sizes (16 x 9 cm and similar) use the fallback

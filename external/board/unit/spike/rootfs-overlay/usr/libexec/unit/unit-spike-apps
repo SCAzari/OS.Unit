@@ -36,7 +36,11 @@ PROFILE
 	fcitx5 -d --replace >/run/unit-spike-fcitx5.log 2>&1
 	sleep 3
 	log "fcitx5 $(pidof fcitx5 >/dev/null && echo running || echo 'not running')"
-	[ "$IM" = fcitx ] && export QT_IM_MODULE=fcitx
+	# Qt: its own Wayland text-input path (text-input v3, which the compositor offers), unless the
+	# boot asks for the Fcitx5 Qt input module.
+	if [ "$IM" = fcitx ]; then export QT_IM_MODULE=fcitx
+	else export QT_IM_MODULE=wayland QT_WAYLAND_TEXT_INPUT_PROTOCOL=zwp_text_input_v3; fi
+	export QT_LOGGING_RULES="qt.qpa.input*=true;qt.qpa.wayland.textinput=true"
 fi
 
 # Shared with unit-spike-check, which runs the probe in this session.

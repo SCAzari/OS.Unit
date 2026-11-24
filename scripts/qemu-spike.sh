@@ -16,7 +16,8 @@ boot() { # toolkit, screen, test, [extra kernel options]
 	case " ${SPIKE_ONLY:-$name} " in *" $name "*) ;; *) return 0 ;; esac
 	dir="$RES/$name"; log="$dir/serial.log"
 	rm -rf "$dir"; mkdir -p "$dir"
-	opts="unit.spike=$1 unit.spike_screen=$2 unit.spike_test=$3 ${4:-}"
+	# No key repeat: slow emulation can deliver a key release late (see unit-compositor state.rs).
+	opts="unit.spike=$1 unit.spike_screen=$2 unit.spike_test=$3 unit.key_repeat=0 ${4:-}"
 	case "$3" in touch-*) opts="$opts unit.touch_timing=1" ;; esac
 	echo "===== $name ($opts)"
 	timeout ${SPIKE_TIMEOUT:-1800} qemu-system-x86_64 $ACCEL -cpu max -m 3072 -smp 2 -M pc -no-reboot \

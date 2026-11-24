@@ -125,6 +125,13 @@ def extents(name):
     if not m:
         return None
     x, y, w, h = map(int, m.groups())
+    # Toolkits report window coordinates in points or in physical pixels (buffer scale): the
+    # probe prints the window width just before, which is 412 points on this display.
+    win = re.findall(r"PROBE WINDOW (\d+) (\d+)", serial()[:m.start()])
+    k = int(win[-1][0]) / (W / FACTOR) if win else 1.0
+    if abs(k - 1) > 0.05:
+        print(f"extents of {name!r} in toolkit pixels at scale {k:.2f}: converted to points")
+    x, y, w, h = x / k, y / k, w / k, h / k
     return x + w / 2, y + h / 2, w, h
 
 
@@ -220,7 +227,7 @@ elif test == "touch-tap":
     if k and wait_for(r"UNIT-SPIKE: touch-ready", 60):
         for i in range(200):
             tap(q, k[0], k[1])
-            time.sleep(0.3)     # each tap draws the key's pressed state, so every tap changes the frame
+            time.sleep(0.6)     # each tap draws the key's pressed state, so every tap changes the frame
         shot(q, "2-after-taps")
 
 elif test == "touch-drag":

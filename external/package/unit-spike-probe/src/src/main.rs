@@ -248,7 +248,8 @@ async fn dump(screen: &str) -> Res<bool> {
     for (i, e) in want.iter().enumerate() {
         let name = e["name"].as_str().unwrap_or_default();
         let roles = kinds(&spec, e["kind"].as_str().unwrap_or_default());
-        let Some((pos, n)) = nodes.iter().enumerate().find(|(_, n)| n.name == name) else {
+        // Depth 0 is the window, whose name is the screen title (the same as some headings).
+        let Some((pos, n)) = nodes.iter().enumerate().find(|(_, n)| n.depth > 0 && n.name == name) else {
             problems.push(format!("missing \"{}\"", name));
             continue;
         };
@@ -436,7 +437,14 @@ async fn scan(screen: &str) -> Res<bool> {
 async fn text(name: &str) -> Res<bool> {
     let conn = a11y_bus().await?;
     let (bus, path) = wait_window(&conn, "settings", 30).await?;
-    for n in walk(&conn, &bus, &path).await? {
+    let nodes = walk(&conn, &bus, &path).await?;
+    if let Some(n) = nodes.iter().find(|n| n.depth > 0 && n.name == name && !n.has_text) {
+        if !nodes.iter().any(|m| m.name == name && m.has_text) {
+            println!("PROBE TEXT \"{}\" no-text-interface role={}", name, n.role);
+            return Ok(false);
+        }
+    }
+    for n in nodes {
         if n.name == name && n.has_text {
             let t = TextProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
             let count = t.character_count().await?;
@@ -454,7 +462,20 @@ async fn text(name: &str) -> Res<bool> {
 async fn extents(screen: &str, names: &[String]) -> Res<bool> {
     let conn = a11y_bus().await?;
     let (bus, path) = wait_window(&conn, screen, 60).await?;
-    let nodes = walk(&conn, &bus, &path).await?;
+    // A page that has just opened may still be filling in its tree: wait up to 30 s for every
+    // requested element.
+    let end = Instant::now() + Duration::from_secs(30);
+    let mut nodes = walk(&conn, &bus, &path).await?;
+    while !names.iter().all(|w| nodes.iter().any(|n| &n.name == w && n.has_component)) && Instant::now() < end {
+        async_io::Timer::after(Duration::from_millis(500)).await;
+        nodes = walk(&conn, &bus, &path).await?;
+    }
+    // Window size in the toolkit's coordinates: some toolkits report physical pixels (buffer
+    // scale), others points; the host divides by (window width / display width in points).
+    let win = ComponentProxy::builder(&conn).destination(bus.clone())?.path(path.clone())?.build().await?;
+    if let Ok((_, _, w, h)) = win.get_extents(CoordType::Window).await {
+        println!("PROBE WINDOW {} {}", w, h);
+    }
     let mut all = true;
     for want in names {
         match nodes.iter().find(|n| &n.name == want && n.has_component) {

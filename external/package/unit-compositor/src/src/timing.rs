@@ -19,7 +19,9 @@ pub struct TouchTiming {
     enabled: bool,
     clock: Clock<Monotonic>,
     next_id: u64,
-    probe: Option<Probe>,
+    /// Touches still waiting for their response to reach the display, oldest first. A slow
+    /// client can still be drawing one tap when the next arrives, so each is tracked to the end.
+    probes: Vec<Probe>,
     /// The client under the finger while it is down, with its touch number.
     touched: Option<(u64, ClientId)>,
 }
@@ -37,7 +39,7 @@ impl TouchTiming {
         if enabled {
             tracing::warn!("touch timing on (unit.touch_timing=1): test boot only");
         }
-        Self { enabled, clock: Clock::new(), next_id: 0, probe: None, touched: None }
+        Self { enabled, clock: Clock::new(), next_id: 0, probes: Vec::new(), touched: None }
     }
 
     fn now_us(&self) -> u64 {
@@ -49,7 +51,9 @@ impl TouchTiming {
         if !self.enabled {
             return;
         }
-        if let Some(old) = self.probe.take() {
+        // Bound the backlog: a touch with no response after 64 further touches is reported.
+        if self.probes.len() >= 64 {
+            let old = self.probes.remove(0);
             tracing::info!("touch-timing: id={} incomplete", old.id);
         }
         let Some(client) = client else {
@@ -58,7 +62,7 @@ impl TouchTiming {
         };
         self.next_id += 1;
         self.touched = Some((self.next_id, client.clone()));
-        self.probe = Some(Probe { id: self.next_id, input_us, client, commit_us: None, frame: None });
+        self.probes.push(Probe { id: self.next_id, input_us, client, commit_us: None, frame: None });
     }
 
     pub fn touch_up(&mut self) {
@@ -71,10 +75,9 @@ impl TouchTiming {
             return;
         }
         let now = self.now_us();
-        if let Some(probe) = self.probe.as_mut() {
-            if &probe.client == client && probe.commit_us.is_none() {
-                probe.commit_us = Some(now);
-            }
+        // The response to each pending touch is the client's first commit after it.
+        for probe in self.probes.iter_mut().filter(|p| &p.client == client && p.commit_us.is_none()) {
+            probe.commit_us = Some(now);
         }
         if let Some((id, touched)) = &self.touched {
             if touched == client {
@@ -85,10 +88,8 @@ impl TouchTiming {
 
     /// Frame number `frame` was queued for display.
     pub fn frame_queued(&mut self, frame: u64) {
-        if let Some(probe) = self.probe.as_mut() {
-            if probe.commit_us.is_some() && probe.frame.is_none() {
-                probe.frame = Some(frame);
-            }
+        for probe in self.probes.iter_mut().filter(|p| p.commit_us.is_some() && p.frame.is_none()) {
+            probe.frame = Some(frame);
         }
     }
 
@@ -99,8 +100,10 @@ impl TouchTiming {
             return;
         }
         let present_us = present_us.unwrap_or_else(|| self.now_us());
-        if self.probe.as_ref().and_then(|p| p.frame) == Some(frame) {
-            let p = self.probe.take().expect("probe");
+        let (done, waiting): (Vec<Probe>, Vec<Probe>) =
+            std::mem::take(&mut self.probes).into_iter().partition(|p| p.frame == Some(frame));
+        self.probes = waiting;
+        for p in done {
             let commit_us = p.commit_us.unwrap_or(present_us);
             tracing::info!(
                 "touch-timing: id={} input_us={} commit_us={} present_us={} to_commit_us={} to_present_us={}",

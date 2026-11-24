@@ -84,7 +84,10 @@ impl UnitState {
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
         // Keyboard layout from the system's layout data (xkeyboard-config). Without it the
         // compositor still runs with pointer and touch input, and says why there is no keyboard.
-        if let Err(err) = seat.add_keyboard(Default::default(), 400, 30) {
+        // unit.key_repeat=0 (test boots): no key repeat. In slow emulation a client can read a key
+        // release late and repeat the key; the toolkit spike's switch tests send single presses.
+        let repeat_rate = if kernel_option("unit.key_repeat=0") { 0 } else { 30 };
+        if let Err(err) = seat.add_keyboard(Default::default(), 400, repeat_rate) {
             tracing::error!("no keyboard: the keyboard layout could not be compiled ({:?})", err);
         }
         seat.add_pointer();

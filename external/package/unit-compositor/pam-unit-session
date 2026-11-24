@@ -1,0 +1,5 @@
+# PAM stack for the Unit compositor session (emulation, UNIT-OS-WP-0009). Only opens a logind
+# session; sign-in and recovery are built in stage 3 (Identity service).
+auth     required pam_permit.so
+account  required pam_permit.so
+session  required pam_systemd.so

@@ -1,0 +1,31 @@
+[package]
+name = "unit-compositor"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+resolver = "3"
+license = "LicenseRef-Unit-Proprietary"
+description = "Unit compositor: Wayland compositor and window manager of Unit OS (Software Architecture r1.16 §4)"
+publish = false
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dependencies.smithay]
+version = "0.7"
+default-features = false
+features = [
+    "backend_drm",
+    "backend_gbm",
+    "backend_egl",
+    "backend_libinput",
+    "backend_session_libseat",
+    "backend_udev",
+    "renderer_gl",
+    "wayland_frontend",
+    "desktop",
+]
+
+[profile.release]
+lto = "thin"

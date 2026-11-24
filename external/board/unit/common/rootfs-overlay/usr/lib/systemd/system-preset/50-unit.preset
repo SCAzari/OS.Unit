@@ -1,3 +1,5 @@
 # Unit OS services enabled in the image. Each runs only when its kernel command-line switch is set.
 enable unit-smoke.service
 enable unit-harness.service
+enable unit-display-check.service
+enable unit-compositor.service

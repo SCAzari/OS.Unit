@@ -16,6 +16,8 @@ This repository is the os.unit build system (work package UNIT-OS-WP-0002: build
 | `scripts/qemu-smoke.sh` | Boots the emulation image in QEMU and checks the smoke results on the serial console. |
 | `external/package/unit-harness/` | Test harness and trace capture (development and test images only). |
 | `scripts/qemu-harness.sh` | Boots the emulation image with the harness and keeps its result records on the host. |
+| `external/package/unit-compositor/` | Unit compositor (Rust, Smithay library): Wayland compositor and window manager, first version under UNIT-OS-WP-0009 (Desktop Foundation - Increment 1). |
+| `scripts/qemu-display.sh` | Boots the emulation image with the Unit compositor on a virtual GPU, takes screenshots and sends pointer and touch input (results in `results/display/`). |
 | `.github/workflows/build.yml` | CI: builds each configuration from a clean checkout on the self-hosted runner `unit-build-1` (label `unit-build`; a manual run can pick a GitHub-hosted machine instead), keeps the licence manifest, then runs the smoke check and test harness on a GitHub-hosted machine with KVM. |
 
 ## Upstream components in the current image
@@ -40,6 +42,7 @@ git clone --recurse-submodules <this repository>
 make                 # build the emulation image
 make smoke           # boot it in QEMU and run the smoke check
 make harness         # boot it in QEMU, run the test harness, keep results in results/harness/
+make display         # boot it with the Unit compositor, screenshot it and check pointer and touch input
 ```
 
 Output images are in `output/<config>/images/`. The first build compiles the toolchain-side tools, LLVM and Mesa and takes several hours; later builds use the download and compiler caches.
@@ -93,3 +96,20 @@ The image combines upstream open-source components under their own licences with
 The Linux kernel is GPL-2.0: Unit publishes the kernel source it ships, with its changes, when it distributes an image.
 Firmware binaries are redistributed unmodified under their linux-firmware licences.
 The licence for Unit's own software is set under Design decision D-09.
+
+## Unit compositor
+
+`unit-compositor` is the Unit compositor of Software Architecture r1.16 §4, built on the Smithay library.
+The first version (UNIT-OS-WP-0009) drives the first connected display of the primary GPU through DRM/KMS,
+renders with OpenGL ES (in software on the emulated GPU, on the Intel graphics on core.unit), takes keyboard,
+pointer and touch input through libinput, and shows applications in the compact (phone) layout: each window fills
+the display, and pressing or touching a window raises it. It starts at boot in its own logind session on the first
+virtual terminal (`unit-compositor.service`). Dependencies are pinned in `Cargo.lock` to versions that build with
+Buildroot's Rust 1.88.
+
+Booting with `unit.display_check=1` runs `unit-display-check.service`. `make display` boots the image three times
+from cold (`DISPLAY_BOOTS`). On each boot the host checks the start-up picture before any input, moves the pointer to
+two positions and checks each picture shows it there, clicks, then sends a touch at separate x and y targets and
+checks the positions the compositor reported for the click and the touch. Every boot must pass. A further boot with
+`unit.render_wait=0` (the compositor's render wait off, same build and plane settings) is reported as the A/B test
+for UNIT-OS-ISS-0020 and does not affect the result (`DISPLAY_AB=0` skips it). Results: `results/display/<boot>/`.

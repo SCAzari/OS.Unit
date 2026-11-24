@@ -2,3 +2,4 @@
 /dl/
 /.ccache/
 smoke.log
+__pycache__/

@@ -7,7 +7,9 @@
 # 5.1.19: the newest release that builds with Buildroot's wayland-protocols 1.45 (5.1.20 and
 # later need 1.46).
 FCITX5_VERSION = 5.1.19
-FCITX5_SITE = $(call github,fcitx,fcitx5,$(FCITX5_VERSION))
+# The release tarball, not GitHub's archive: it includes the yoga submodule (third_party/yoga).
+FCITX5_SITE = https://download.fcitx-im.org/fcitx5/fcitx5
+FCITX5_SOURCE = fcitx5-$(FCITX5_VERSION).tar.zst
 FCITX5_LICENSE = LGPL-2.1+, Unicode-DFS-2016 (data)
 FCITX5_LICENSE_FILES = LICENSES/LGPL-2.1-or-later.txt LICENSES/Unicode-DFS-2016.txt
 FCITX5_INSTALL_STAGING = YES

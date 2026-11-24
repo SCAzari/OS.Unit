@@ -108,7 +108,12 @@ async fn read_node(conn: &Connection, bus: &str, path: &str, depth: usize) -> Re
         bus: bus.to_owned(),
         path: path.to_owned(),
         depth,
-        role: acc.get_role_name().await.unwrap_or_default(),
+        // GetRoleName, or the numeric role's standard name where an implementation leaves the
+        // name empty (AccessKit, used by Slint, does).
+        role: match acc.get_role_name().await.unwrap_or_default() {
+            r if !r.is_empty() => r,
+            _ => acc.get_role().await.map(|r| r.name().to_owned()).unwrap_or_default(),
+        },
         name: acc.name().await.unwrap_or_default().trim().to_owned(),
         focusable: states.contains(State::Focusable),
         focused: states.contains(State::Focused),

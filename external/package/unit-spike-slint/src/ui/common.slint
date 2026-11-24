@@ -139,6 +139,7 @@ export component KeyButton inherits Control {
 
 export component PillButton inherits Control {
     in property <string> label;
+    name: label;
     height: 48px; width: max(120px, t.preferred-width + 40px);
     border-radius: self.height / 2;
     background: self.pressed ? Theme.accent-soft : transparent;

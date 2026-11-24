@@ -38,7 +38,7 @@ Rectangle {
         radius: Theme.radius; color: Theme.surface
         Column {
             id: body
-            x: 16; y: 16; width: parent.width - 32; spacing: 14
+            x: 16; y: 16; width: parent.width - 32; spacing: 10  // mock-up P07 row gaps; the card then fits above the bar
             Text {
                 text: "THEME"; color: Theme.secondary; font.family: Theme.fontFamily
                 font.pixelSize: Theme.label; font.weight: Font.Bold; font.letterSpacing: 1

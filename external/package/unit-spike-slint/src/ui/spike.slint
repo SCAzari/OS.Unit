@@ -141,7 +141,7 @@ component DisplayAppearance inherits Rectangle {
         x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; height: body.preferred-height + 32px;
         border-radius: Theme.radius * 1px; background: Theme.surface;
         body := VerticalLayout {
-            x: 16px; y: 16px; width: parent.width - 32px; spacing: 14px;
+            x: 16px; y: 16px; width: parent.width - 32px; spacing: 10px; // mock-up P07 row gaps; the card then fits above the bar
             Text { text: "THEME"; color: Theme.secondary; font-size: 14px; font-weight: 700; letter-spacing: 1px; accessible-label: "Theme"; }
             HorizontalLayout { spacing: 8px;
             theme0 := Choice { width: (body.width - 16px) / 3; height: 90px; label: "Daylight"; checked: Theme.theme-index == 0;

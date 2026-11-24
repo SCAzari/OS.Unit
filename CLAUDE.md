@@ -31,15 +31,23 @@ Conditions set by the Executive:
 4. The Senior User formally accepts the demonstration before WP-0009 closes.
 
 Open now:
-- PR #5 (branch `wp0009/compositor`): Unit compositor, first version. Do not merge without the
-  Executive's go-ahead, and not until they have reviewed the screenshots.
+- PR #5 (Unit compositor, first version) was merged into `main` on 24 Nov 2026 (`6b69f4f`), with
+  review findings 1-6 fixed. Still open from that review:
+  - Finding 6, two parts: the legal-info manifest row for unit-compositor does not name the crates
+    archive (`unit-compositor-0.1.0-crates.tar.gz`), and a first build without network access fails
+    because the crates are fetched at build time, not by `make source`.
+  - Low findings 7-14 (PR #5 review comment), deferred. Finding 7 (the `unit.render_wait=0` switch
+    in every image) must be done before any release image is built.
 - UNIT-OS-ISS-0020: the emulated display showed partly drawn frames. Fix: wait for drawing when
   Smithay's `RenderFrameResult::needs_sync()` is true; no hardware planes on the emulated GPU so the
   screenshots show the whole picture. A/B evidence: `make display` runs one extra boot with
-  `unit.render_wait=0`.
+  `unit.render_wait=0`. Closed for emulation on 24 Nov 2026: CI run 45297755440 on the merged
+  code passed 3 cold boots under the strict picture check, and the A/B boot failed with a partly
+  drawn start-up frame. Still to confirm on purchased hardware (DEC-0105, DEC-0107).
 - UNIT-OS-ISS-0019: monitors reporting placeholder sizes (16 x 9 cm and similar) use the fallback
-  density (Interface Design r1.20 §5.1). Closes when a PR #5 run passes the display check including
-  the picture check and the Senior User confirms the screenshots.
+  density (Interface Design r1.20 §5.1). Both closure conditions met on 24 Nov 2026 (display check
+  passed including the picture check; Senior User approved the screenshots): to be closed by the
+  Project Manager.
 - Known limitations of the first compositor: runs as root; one display only; compact layout only
   (the layout class still reflects the width after scaling).
 

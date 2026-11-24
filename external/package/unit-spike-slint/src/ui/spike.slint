@@ -23,7 +23,7 @@ component SignIn inherits Rectangle {
         x: 20px; y: date.y + date.preferred-height + 40px; width: parent.width - 40px; height: 64px;
         accessible-role: text; accessible-label: "1 new message. Sign in to see details";
         Rectangle { x: 16px; y: 15px; width: 34px; height: 34px; border-radius: 10px; background: Theme.accent-soft;
-            Text { text: "✉"; color: Theme.accent; font-size: 18px; accessible-role: none; } }
+            Text { text: "〒"; color: Theme.accent; font-size: 18px; accessible-role: none; } }
         Text { x: 64px; y: 12px; text: "1 new message"; color: Theme.text; font-size: 16px; font-weight: 600; accessible-role: none; }
         Text { x: 64px; y: 34px; text: "Sign in to see details"; color: Theme.text; font-size: 14px; accessible-role: none; }
     }
@@ -55,10 +55,10 @@ component SignIn inherits Rectangle {
         k0 := KeyButton { x: 136px; y: 300px; label: "0"; activated => { root.digits = Math.min(6, root.digits + 1); } tab-next => { del.take-focus(); } tab-prev => { k9.take-focus(); } }
         del := KeyButton { x: 248px; y: 300px; label: "⌫"; name: "Delete digit"; activated => { root.digits = Math.max(0, root.digits - 1); } tab-next => { switch-profile.take-focus(); } tab-prev => { k0.take-focus(); } }
         forgot := PillButton { x: 24px; y: parent.height - 72px; label: "Forgot PIN?"; tab-next => { a11y.take-focus(); } tab-prev => { switch-profile.take-focus(); } }
-        switch-profile := PillButton { x: parent.width - 24px - self.width; y: parent.height - 72px; label: "☺  Switch"; name: "Switch profile"; tab-next => { forgot.take-focus(); } tab-prev => { del.take-focus(); } }
+        switch-profile := PillButton { x: parent.width - 24px - self.width; y: parent.height - 72px; label: "⇄  Switch"; name: "Switch profile"; tab-next => { forgot.take-focus(); } tab-prev => { del.take-focus(); } }
     }
     a11y := NavButton {
-        x: 20px; y: parent.height - 80px; glyph: "♿"; name: "Accessibility"; background: self.pressed ? Theme.accent-soft : Theme.surface;
+        x: 20px; y: parent.height - 80px; glyph: "◉"; name: "Accessibility"; background: self.pressed ? Theme.accent-soft : Theme.surface;
         tab-next => { k1.take-focus(); } tab-prev => { forgot.take-focus(); }
     }
 }

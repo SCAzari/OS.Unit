@@ -42,6 +42,7 @@ struct Node {
     focused: bool,
     showing: bool,
     checked: bool,
+    editable: bool,
     value: Option<f64>,
     has_action: bool,
     has_component: bool,
@@ -113,6 +114,7 @@ async fn read_node(conn: &Connection, bus: &str, path: &str, depth: usize) -> Re
         focused: states.contains(State::Focused),
         showing: states.contains(State::Showing),
         checked: states.contains(State::Checked) || states.contains(State::Pressed),
+        editable: states.contains(State::Editable),
         value,
         has_action: ifaces.contains(Interface::Action),
         has_component: ifaces.contains(Interface::Component),
@@ -194,6 +196,13 @@ fn speak(text: &str, n: usize) {
         .map(|s| s.success())
         .unwrap_or(false);
     println!("PROBE SAY {} \"{}\"", if ok { "spoken" } else { "not-spoken" }, text);
+}
+
+/// Whether an element is a control a person operates (and a switch scanner steps to).
+fn interactive(n: &Node) -> bool {
+    const ROLES: &[&str] = &["push button", "button", "toggle button", "radio button", "radio menu item",
+        "check box", "slider", "spin button", "entry", "password text", "editbar"];
+    ROLES.contains(&n.role.as_str()) || (n.role == "text" && n.has_text && n.editable)
 }
 
 fn utterance(n: &Node) -> String {
@@ -324,7 +333,12 @@ async fn scan(screen: &str) -> Res<bool> {
     let conn = a11y_bus().await?;
     let (bus, path) = wait_window(&conn, screen, 60).await?;
     let nodes = walk(&conn, &bus, &path).await?;
-    let targets: Vec<&Node> = nodes.iter().filter(|n| n.focusable && n.showing && !n.name.is_empty()).collect();
+    // A switch scanner steps through the controls a person can operate, not static text (some
+    // toolkits mark labels focusable on AT-SPI).
+    let targets: Vec<&Node> = nodes
+        .iter()
+        .filter(|n| n.focusable && n.showing && !n.name.is_empty() && interactive(n))
+        .collect();
     let uses_flows = targets.iter().any(|n| !n.flows_to.is_empty());
     let mut order: Vec<&Node> = Vec::new();
     if uses_flows {
@@ -368,7 +382,13 @@ async fn scan(screen: &str) -> Res<bool> {
     println!("PROBE SCAN {} highlighted={}/{}", screen, highlighted, order.len());
 
     // Select.
-    let select = &spec["screens"][screen]["select"];
+    // The scanner's own Select target where the screen has one (sign-in: the toolkit focus-chain
+    // test has already pressed a digit), otherwise the screen's select target.
+    let select = if spec["screens"][screen]["scan_select"].is_object() {
+        &spec["screens"][screen]["scan_select"]
+    } else {
+        &spec["screens"][screen]["select"]
+    };
     let press = select["press"].as_str().unwrap_or_default();
     let mut select_ok = false;
     if let Some(n) = order.iter().find(|n| n.name == press) {

@@ -34,7 +34,8 @@
       ],
       "scan": ["Accessibility", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "Delete digit",
                "Switch profile", "Forgot PIN?"],
-      "select": {"press": "5", "expect": "PIN, 1 of 6 digits entered"}
+      "select": {"press": "5", "expect": "PIN, 1 of 6 digits entered"},
+      "scan_select": {"press": "Delete digit", "expect": "PIN, 0 of 6 digits entered"}
     },
     "settings": {
       "source": "Interface Design SC04 Settings home (wireframe B), with a test-only search field (issue #8 answer 8c)",

@@ -14,11 +14,11 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 12
         Text {
-            text: "✱"; color: Theme.secondary; font.pixelSize: Theme.label
+            text: "◆"; color: Theme.secondary; font.pixelSize: Theme.label
             Accessible.role: Accessible.StaticText; Accessible.name: "Bluetooth on"
         }
         Text {
-            text: "◔"; color: Theme.secondary; font.pixelSize: Theme.label
+            text: "◎"; color: Theme.secondary; font.pixelSize: Theme.label
             Accessible.role: Accessible.StaticText; Accessible.name: "Wi-Fi connected"
         }
         Text {

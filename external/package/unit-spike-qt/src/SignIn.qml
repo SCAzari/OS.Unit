@@ -47,7 +47,7 @@ Item {
         Rectangle {
             x: 16; anchors.verticalCenter: parent.verticalCenter
             width: 34; height: 34; radius: 10; color: Theme.accentSoft
-            Text { anchors.centerIn: parent; text: "✉"; color: Theme.accent; font.pixelSize: 18; Accessible.ignored: true }
+            Text { anchors.centerIn: parent; text: "〒"; color: Theme.accent; font.pixelSize: 18; Accessible.ignored: true }
         }
         Column {
             x: 64; anchors.verticalCenter: parent.verticalCenter
@@ -115,7 +115,7 @@ Item {
         }
         PillButton { id: forgot; label: "Forgot PIN?"; x: 24; anchors.bottom: parent.bottom; anchors.bottomMargin: 24
                      prevItem: switchProfile; nextItem: a11y }
-        PillButton { id: switchProfile; label: "☺  Switch"; accessibleName: "Switch profile"
+        PillButton { id: switchProfile; label: "⇄  Switch"; accessibleName: "Switch profile"
                      anchors.right: parent.right; anchors.rightMargin: 24; anchors.bottom: parent.bottom; anchors.bottomMargin: 24
                      prevItem: del; nextItem: forgot }
     }
@@ -132,7 +132,7 @@ Item {
         Accessible.role: Accessible.Button
         Accessible.name: "Accessibility"
         Accessible.focusable: true
-        Text { anchors.centerIn: parent; text: "♿"; color: Theme.text; font.pixelSize: 24; Accessible.ignored: true }
+        Text { anchors.centerIn: parent; text: "◉"; color: Theme.text; font.pixelSize: 24; Accessible.ignored: true }
         TapHandler { id: a11yTap }
         FocusRing { controlRadius: 28 }
     }

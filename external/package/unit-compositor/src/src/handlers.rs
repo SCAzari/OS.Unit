@@ -82,6 +82,16 @@ impl CompositorHandler for UnitState {
         }
 
         self.popups.commit(surface);
+        if let Some(PopupKind::InputMethod(ref popup)) = self.popups.find_popup(surface) {
+            let size = smithay::backend::renderer::utils::with_renderer_surface_state(surface, |s| s.surface_size())
+                .flatten();
+            tracing::info!(
+                "input method popup: commit at {:?}, cursor rectangle {:?}, size {:?}",
+                popup.location(),
+                popup.text_input_rectangle(),
+                size
+            );
+        }
         if let Some(PopupKind::Xdg(ref popup)) = self.popups.find_popup(surface) {
             if !popup.is_initial_configure_sent() {
                 popup.send_configure().expect("initial popup configure");

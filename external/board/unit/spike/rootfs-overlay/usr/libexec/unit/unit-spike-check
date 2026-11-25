@@ -21,6 +21,12 @@ sleep 3
 case "$TEST" in
 a11y)
 	$P dump "$SCREEN"
+	if [ "$SCREEN" = display ]; then
+		# Started on the Display page (no page change first): reading and compositor-level scan.
+		$P scan display
+		journalctl -b -t unit-compositor -o cat --no-pager | grep 'touch-timing' | sed 's/^/UNIT-SPIKE-T: /'
+		done_
+	fi
 	# C4a: the host presses Next (Tab) through the declared order, then Select (Space).
 	$P focus 75 &
 	fp=$!

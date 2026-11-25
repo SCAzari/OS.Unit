@@ -7,7 +7,7 @@ Window {
     width: 412; height: 893
     color: Theme.background
     title: loader.item ? loader.item.Accessible.name : "Unit spike"
-    property string page: startScreen === "settings" ? "settings" : "sign-in"
+    property string page: startScreen === "settings" || startScreen === "display" ? startScreen : "sign-in"
     Loader {
         id: loader
         anchors.fill: parent

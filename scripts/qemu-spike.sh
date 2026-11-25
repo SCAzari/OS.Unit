@@ -36,6 +36,7 @@ boot() { # toolkit, screen, test, [extra kernel options]
 for tk in qt slint; do
 	boot $tk sign-in a11y
 	boot $tk settings a11y
+	boot $tk display a11y
 	boot $tk settings ime
 	boot $tk sign-in touch-tap
 	boot $tk settings touch-drag

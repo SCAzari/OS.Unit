@@ -215,7 +215,8 @@ elif test == "ime":
             key(q, c); time.sleep(0.15)
         time.sleep(1); shot(q, "2-preedit-kanji")
         key(q, "spc"); time.sleep(1.5)
-        key(q, "spc"); time.sleep(1.5); shot(q, "3-candidates")
+        key(q, "spc"); time.sleep(1.5)
+        key(q, "spc"); time.sleep(2.5); shot(q, "3-candidates")
         key(q, "esc"); time.sleep(0.5); key(q, "esc"); time.sleep(0.5)
         for _ in range(6):
             key(q, "backspace"); time.sleep(0.1)

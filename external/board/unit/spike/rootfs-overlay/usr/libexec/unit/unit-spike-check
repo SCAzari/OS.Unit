@@ -77,8 +77,9 @@ touch-tap)
 touch-drag)
 	$P extents settings "Display and appearance"
 	say "drag-open"
+	# The host aims from the design layout; reading the slider over AT-SPI would crash Qt
+	# (recorded as a finding).
 	$P wait display 60 && sleep 2
-	$P extents display "Corner rounding"
 	say "drag-ready"
 	n=0
 	while [ $n -lt 300 ]; do

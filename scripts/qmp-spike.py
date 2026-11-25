@@ -177,7 +177,8 @@ def finish():
                                         "p95": round(p95(com), 1), "max": round(max(com), 1)}
     commits = [int(m) for m in re.findall(r"UNIT-SPIKE-T:.*touch-timing: commit id=\d+ t_us=(\d+)", data)]
     if len(commits) > 2:
-        gaps = sorted((b - a) / 1000 for a, b in zip(commits, commits[1:]) if 0 < b - a < 500_000)
+        # One drag gesture: every gap between the touched client's frames counts.
+        gaps = sorted((b - a) / 1000 for a, b in zip(commits, commits[1:]) if b > a)
         if gaps:
             p95 = gaps[min(len(gaps) - 1, int(round(0.95 * (len(gaps) - 1))))]
             result["drag_frame_interval_ms"] = {"n": len(gaps), "median": round(statistics.median(gaps), 1),

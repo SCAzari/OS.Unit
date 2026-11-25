@@ -45,4 +45,6 @@ boot qt settings ime unit.spike_im=fcitx
 # Experiment: one AT-SPI text read of the empty field.
 boot qt settings text-read
 boot slint settings text-read
+# Experiment: the same read on Qt Quick Controls' standard Slider and TextField.
+boot qt controls text-read
 echo "Results in $RES"

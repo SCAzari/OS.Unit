@@ -7,14 +7,16 @@ Window {
     width: 412; height: 893
     color: Theme.background
     title: loader.item ? loader.item.Accessible.name : "Unit spike"
-    property string page: startScreen === "settings" || startScreen === "display" ? startScreen : "sign-in"
+    property string page: ["settings", "display", "controls"].indexOf(startScreen) >= 0 ? startScreen : "sign-in"
     Loader {
         id: loader
         anchors.fill: parent
         focus: true
-        sourceComponent: window.page === "sign-in" ? signIn : (window.page === "display" ? display : settings)
+        sourceComponent: window.page === "sign-in" ? signIn : window.page === "display" ? display
+                         : window.page === "controls" ? controls : settings
     }
     Component { id: signIn; SignIn {} }
+    Component { id: controls; ControlsCheck {} }
     // The page is changed after the handler that asked for it returns (the old page is destroyed).
     Component { id: settings; SettingsHome { onOpenDisplay: Qt.callLater(() => window.page = "display") } }
     Component { id: display; DisplayAppearance { onBack: Qt.callLater(() => window.page = "settings") } }

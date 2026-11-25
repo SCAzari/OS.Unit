@@ -138,7 +138,8 @@ component DisplayAppearance inherits Rectangle {
     crumb := Text { x: 20px; y: 44px; text: "Settings"; color: Theme.secondary; font-size: 14px; }
     heading := Text { x: 20px; y: crumb.y + crumb.preferred-height; text: "Display and appearance"; color: Theme.text; font-size: 28px; font-weight: 700; }
     card := Rectangle {
-        x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; height: body.preferred-height + 32px;
+        x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; // The layout's preferred height falls short of its last row (Font): leave room for it.
+        height: body.preferred-height + 52px;
         border-radius: Theme.radius * 1px; background: Theme.surface;
         body := VerticalLayout {
             x: 16px; y: 16px; width: parent.width - 32px; spacing: 10px; // mock-up P07 row gaps; the card then fits above the bar

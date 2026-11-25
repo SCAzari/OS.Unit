@@ -32,7 +32,10 @@ a11y)
 			&& say "C4A-SELECT ok" || say "C4A-SELECT failed"
 		$P scan sign-in
 	else
-		$P wait display 10 && say "C4A-SELECT ok" || say "C4A-SELECT failed"
+		# Let the new page settle before querying it: queries during the change crashed Qt's
+		# AT-SPI bridge (recorded as a finding); this checks the settled page.
+		sleep 10
+		$P wait display 20 && say "C4A-SELECT ok" || say "C4A-SELECT failed"
 		$P dump display
 		$P scan display
 		$P wait settings 10
@@ -42,14 +45,12 @@ a11y)
 ime)
 	$P extents settings "Search settings (test field)"
 	say "ime-ready"
-	last=""; n=0
-	while [ $n -lt 90 ]; do
-		t=$($P text "Search settings (test field)")
-		[ "$t" != "$last" ] && { echo "$t"; last=$t; }
-		case "$t" in *日本語*) break ;; esac
-		sleep 2; n=$((n + 2))
-	done
-	sleep 5
+	# The host types and takes the screenshots (about 30 s); the text is read back once, after
+	# the commit, so reader queries do not run during composition (they crashed Qt's AT-SPI
+	# bridge, recorded as a finding).
+	sleep 75
+	$P text "Search settings (test field)"
+	sleep 3
 	;;
 touch-tap)
 	$P extents sign-in 5

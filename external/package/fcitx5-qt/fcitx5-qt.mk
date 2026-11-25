@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-FCITX5_QT_VERSION = 5.1.13
+FCITX5_QT_VERSION = 5.1.16
 FCITX5_QT_SITE = $(call github,fcitx,fcitx5-qt,$(FCITX5_QT_VERSION))
 FCITX5_QT_LICENSE = LGPL-2.1+ (libraries), BSD-3-Clause (input module)
 FCITX5_QT_LICENSE_FILES = LICENSES/LGPL-2.1-or-later.txt LICENSES/BSD-3-Clause.txt

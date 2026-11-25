@@ -81,7 +81,7 @@ jobs:
             unit-os-${{ matrix.config }}-${{ hashFiles('external/configs/*', '.gitmodules') }}-
             unit-os-${{ matrix.config }}-
       - name: Build
-        timeout-minutes: 325
+        timeout-minutes: 350  # spike branch: a cold build on a new Buildroot (job limit 358)
         run: |
           set +e
           make UNIT_IMAGE=${{ matrix.config }} > build.log 2>&1 &

@@ -2,7 +2,7 @@
 name = "unit-spike-slint"
 version = "0.1.0"
 edition = "2024"
-# Built with the spike's Rust 1.97.1 (package rust-spike), not Buildroot's 1.88.
+# Buildroot 2026.08.1's Rust 1.97.1.
 rust-version = "1.97"
 license = "LicenseRef-Unit-Proprietary"
 description = "Toolkit spike (UNIT-OS-WP-0010): the sign-in and settings screens in Slint"
@@ -20,7 +20,3 @@ slint-build = "=1.18.1"
 
 [profile.release]
 lto = "thin"
-
-# Toolkit spike (spike-only): patched Slint AccessKit integration, see patched/README.md.
-[patch.crates-io]
-i-slint-backend-winit = { path = "patched/i-slint-backend-winit" }

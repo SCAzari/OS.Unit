@@ -4,9 +4,8 @@
 #
 ################################################################################
 
-# 5.1.19: the newest release that builds with Buildroot's wayland-protocols 1.45 (5.1.20 and
-# later need 1.46).
-FCITX5_VERSION = 5.1.19
+# Newest release (Buildroot 2026.08.1 has wayland-protocols 1.48).
+FCITX5_VERSION = 5.1.23
 # The release tarball, not GitHub's archive: it includes the yoga submodule (third_party/yoga).
 FCITX5_SITE = https://download.fcitx-im.org/fcitx5/fcitx5
 FCITX5_SOURCE = fcitx5-$(FCITX5_VERSION).tar.zst

@@ -20,3 +20,7 @@ slint-build = "=1.18.1"
 
 [profile.release]
 lto = "thin"
+
+# Toolkit spike (spike-only): patched Slint AccessKit integration, see patched/README.md.
+[patch.crates-io]
+i-slint-backend-winit = { path = "patched/i-slint-backend-winit" }

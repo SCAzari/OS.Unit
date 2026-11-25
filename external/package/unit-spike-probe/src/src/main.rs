@@ -69,6 +69,8 @@ async fn a11y_bus() -> Res<Connection> {
     Ok(zbus::connection::Builder::address(address.as_str())?.build().await?)
 }
 
+/// Proxies read properties one at a time (Properties.Get), as libatspi-based readers do; Qt does
+/// not implement Properties.GetAll, which zbus uses to fill a property cache.
 async fn proxy<'a>(conn: &'a Connection, bus: &str, path: &str) -> Res<AccessibleProxy<'a>> {
     Ok(AccessibleProxy::builder(conn)
         .destination(bus.to_owned())?
@@ -379,7 +381,7 @@ async fn scan(screen: &str) -> Res<bool> {
         if !n.has_component {
             continue;
         }
-        let comp = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
+        let comp = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await?;
         // Toolkits may apply the request asynchronously: wait up to 3 s for the focused state.
         let _ = comp.grab_focus().await;
         let end = Instant::now() + Duration::from_secs(3);
@@ -409,7 +411,7 @@ async fn scan(screen: &str) -> Res<bool> {
     let mut select_ok = false;
     if let Some(n) = order.iter().find(|n| n.name == press) {
         if n.has_action {
-            let action = ActionProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
+            let action = ActionProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await?;
             let done = action.do_action(0).await;
             println!("PROBE SCAN {} do-action \"{}\" {:?}", screen, press, done);
             // Wait up to 6 s for the effect (applied asynchronously by some toolkits).
@@ -450,7 +452,7 @@ async fn text(name: &str) -> Res<bool> {
     }
     for n in nodes {
         if n.name == name && n.has_text {
-            let t = TextProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
+            let t = TextProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await?;
             let count = t.character_count().await?;
             let s = t.get_text(0, count).await?;
             println!("PROBE TEXT \"{}\" text=\"{}\"", name, s);
@@ -476,7 +478,7 @@ async fn extents(screen: &str, names: &[String]) -> Res<bool> {
     }
     // Window size in the toolkit's coordinates: some toolkits report physical pixels (buffer
     // scale), others points; the host divides by (window width / display width in points).
-    let win = ComponentProxy::builder(&conn).destination(bus.clone())?.path(path.clone())?.build().await?;
+    let win = ComponentProxy::builder(&conn).destination(bus.clone())?.path(path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await?;
     if let Ok((_, _, w, h)) = win.get_extents(CoordType::Window).await {
         println!("PROBE WINDOW {} {}", w, h);
     }
@@ -484,7 +486,7 @@ async fn extents(screen: &str, names: &[String]) -> Res<bool> {
     // a toolkit can report the window in points but its elements in physical pixels.
     let mut span = 0;
     for n in nodes.iter().filter(|n| n.depth > 0 && n.has_component) {
-        if let Ok(c) = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await {
+        if let Ok(c) = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await {
             if let Ok((x, _, w, _)) = c.get_extents(CoordType::Window).await {
                 span = span.max(x + w);
             }
@@ -495,7 +497,7 @@ async fn extents(screen: &str, names: &[String]) -> Res<bool> {
     for want in names {
         match nodes.iter().find(|n| &n.name == want && n.has_component) {
             Some(n) => {
-                let comp = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.build().await?;
+                let comp = ComponentProxy::builder(&conn).destination(n.bus.clone())?.path(n.path.clone())?.cache_properties(zbus::proxy::CacheProperties::No).build().await?;
                 let (x, y, w, h) = comp.get_extents(CoordType::Window).await?;
                 println!("PROBE EXTENTS \"{}\" {} {} {} {}", want, x, y, w, h);
             }

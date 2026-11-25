@@ -141,6 +141,20 @@ def extents(name):
 
 result = {"toolkit": toolkit, "screen": screen, "test": test}
 
+# Touch targets in points. AT-SPI positions are not reliable enough to steer taps (Slint mixes
+# physical pixels and points; Qt's Display page could not be read), so the touch tests use the
+# design layout, which both toolkits follow: key "5" and the "Display and appearance" row are at
+# the same place in both; the Corner rounding slider's track was measured from each toolkit's
+# own Display screenshot (run 5).
+TARGETS = {"5": (206, 495), "Display and appearance": (206, 362),
+           "Corner rounding": {"qt": (206, 546), "slint": (206, 587)}}
+
+
+def target(name):
+    t = TARGETS[name]
+    t = t[toolkit] if isinstance(t, dict) else t
+    return t[0], t[1], 290, 48
+
 
 def finish():
     wait_for(r"UNIT-SPIKE: DONE", 900)
@@ -151,8 +165,8 @@ def finish():
              if "PROBE FOCUS " in l and "listening" not in l]
     if focus:
         result["focus"] = focus
-    timing = [dict(re.findall(r"(\w+)=(\d+)", l)) for l in data.splitlines()
-              if "UNIT-SPIKE-T: touch-timing: id=" in l and "input_us" in l]
+    timing = [dict(re.findall(r"(\w+)=(\d+)", l.split("touch-timing:", 1)[1])) for l in data.splitlines()
+              if "UNIT-SPIKE-T:" in l and "touch-timing: id=" in l and "input_us" in l]
     if timing:
         lat = sorted(int(t["to_present_us"]) / 1000 for t in timing)
         com = sorted(int(t["to_commit_us"]) / 1000 for t in timing)
@@ -161,7 +175,7 @@ def finish():
                                        "p95": round(p95(lat), 1), "max": round(max(lat), 1)}
         result["touch_to_commit_ms"] = {"n": len(com), "median": round(statistics.median(com), 1),
                                         "p95": round(p95(com), 1), "max": round(max(com), 1)}
-    commits = [int(m) for m in re.findall(r"UNIT-SPIKE-T: touch-timing: commit id=\d+ t_us=(\d+)", data)]
+    commits = [int(m) for m in re.findall(r"UNIT-SPIKE-T:.*touch-timing: commit id=\d+ t_us=(\d+)", data)]
     if len(commits) > 2:
         gaps = sorted((b - a) / 1000 for a, b in zip(commits, commits[1:]) if 0 < b - a < 500_000)
         if gaps:
@@ -228,19 +242,19 @@ elif test == "ime":
         key(q, "ret"); time.sleep(6); shot(q, "6-committed")
 
 elif test == "touch-tap":
-    k = extents("5")
-    if k and wait_for(r"UNIT-SPIKE: touch-ready", 60):
+    k = target("5")
+    if wait_for(r"UNIT-SPIKE: touch-ready", 240):
         for i in range(200):
             tap(q, k[0], k[1])
             time.sleep(0.6)     # each tap draws the key's pressed state, so every tap changes the frame
         shot(q, "2-after-taps")
 
 elif test == "touch-drag":
-    row = extents("Display and appearance")
-    if row and wait_for(r"UNIT-SPIKE: drag-open", 60):
+    row = target("Display and appearance")
+    if wait_for(r"UNIT-SPIKE: drag-open", 240):
         tap(q, row[0], row[1])
-        s = extents("Corner rounding")
-        if s and wait_for(r"UNIT-SPIKE: drag-ready", 120):
+        s = target("Corner rounding")
+        if wait_for(r"UNIT-SPIKE: drag-ready", 180):
             cx, cy, w, _ = s
             x0, x1 = cx - w / 2 + 16, cx + w / 2 - 16
             ax, ay = to_abs(x0, cy)

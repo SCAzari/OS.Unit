@@ -86,8 +86,20 @@ async fn read_node(conn: &Connection, bus: &str, path: &str, depth: usize) -> Re
     let ifaces = acc.get_interfaces().await?;
     let mut value = None;
     if ifaces.contains(Interface::Value) {
-        if let Ok(v) = ValueProxy::builder(conn).destination(bus.to_owned())?.path(path.to_owned())?.build().await {
-            value = v.current_value().await.ok();
+        if let Ok(v) = ValueProxy::builder(conn)
+            .destination(bus.to_owned())?
+            .path(path.to_owned())?
+            .cache_properties(zbus::proxy::CacheProperties::No)
+            .build()
+            .await
+        {
+            value = match v.current_value().await {
+                Ok(x) => Some(x),
+                Err(e) => {
+                    println!("PROBE VALUE-ERROR {} {}", path, e);
+                    None
+                }
+            };
         }
     }
     let mut flows_to = Vec::new();

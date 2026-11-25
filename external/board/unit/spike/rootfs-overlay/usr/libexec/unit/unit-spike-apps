@@ -48,6 +48,8 @@ fi
   echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"; } > /run/unit-spike.env.tmp && mv /run/unit-spike.env.tmp /run/unit-spike.env
 
 export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+# Qt's AT-SPI bridge reports unimplemented calls and conversion failures.
+export QT_LOGGING_RULES="${QT_LOGGING_RULES:+$QT_LOGGING_RULES;}qt.accessibility.atspi=true"
 log "starting $TK $SCREEN (test $TEST${IM:+, im $IM})"
 case "$TK" in
 	qt)

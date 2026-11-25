@@ -61,6 +61,8 @@ ime)
 text-read)
 	# Experiment: read the empty search field over AT-SPI once (does any text read crash Qt?).
 	$P text "Search settings (test field)"
+	# Every node with its role, state and value (the standard-controls experiment includes a Slider).
+	$P dump settings | grep "PROBE NODE"
 	sleep 5
 	pidof unit-spike-qt unit-spike-slint >/dev/null && say "app still running" || say "app not running"
 	;;

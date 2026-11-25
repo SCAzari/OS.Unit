@@ -138,12 +138,12 @@ component DisplayAppearance inherits Rectangle {
     crumb := Text { x: 20px; y: 44px; text: "Settings"; color: Theme.secondary; font-size: 14px; }
     heading := Text { x: 20px; y: crumb.y + crumb.preferred-height; text: "Display and appearance"; color: Theme.text; font-size: 28px; font-weight: 700; }
     card := Rectangle {
-        x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; // The layout's preferred height falls short of its last row (Font): leave room for it.
-        height: body.preferred-height + 52px;
+        x: 14px; y: heading.y + heading.preferred-height + 16px; width: parent.width - 28px; 
+        height: body.preferred-height + 32px;
         border-radius: Theme.radius * 1px; background: Theme.surface;
         body := VerticalLayout {
             x: 16px; y: 16px; width: parent.width - 32px; spacing: 10px; // mock-up P07 row gaps; the card then fits above the bar
-            Text { text: "THEME"; color: Theme.secondary; font-size: 14px; font-weight: 700; letter-spacing: 1px; accessible-label: "Theme"; }
+            Text { height: 18px; text: "THEME"; color: Theme.secondary; font-size: 14px; font-weight: 700; letter-spacing: 1px; accessible-label: "Theme"; }
             HorizontalLayout { spacing: 8px;
             theme0 := Choice { width: (body.width - 16px) / 3; height: 90px; label: "Daylight"; checked: Theme.theme-index == 0;
                 background: #E9ECE8; label-color: #1E2626; border-radius: Theme.radius * 0.75px;
@@ -183,7 +183,7 @@ component DisplayAppearance inherits Rectangle {
                     }
                 }
             }
-            Text { text: "Accent colour"; color: Theme.text; font-size: 16px; }
+            Text { height: 20px; text: "Accent colour"; color: Theme.text; font-size: 16px; }
             HorizontalLayout { alignment: start;
             sw0 := Swatch { name: "Teal"; swatch-color: Theme.accents[0]; checked: Theme.accent-index == 0; activated => { Theme.accent-index = 0; } tab-next => { sw1.take-focus(); } tab-prev => { mode2.take-focus(); } }
             sw1 := Swatch { name: "Blue"; swatch-color: Theme.accents[1]; checked: Theme.accent-index == 1; activated => { Theme.accent-index = 1; } tab-next => { sw2.take-focus(); } tab-prev => { sw0.take-focus(); } }
@@ -193,19 +193,19 @@ component DisplayAppearance inherits Rectangle {
             sw5 := Swatch { name: "Amber"; swatch-color: Theme.accents[5]; checked: Theme.accent-index == 5; activated => { Theme.accent-index = 5; } tab-next => { sw6.take-focus(); } tab-prev => { sw4.take-focus(); } }
             sw6 := Swatch { name: "Green"; swatch-color: Theme.accents[6]; checked: Theme.accent-index == 6; activated => { Theme.accent-index = 6; } tab-next => { glass-slider.take-focus(); } tab-prev => { sw5.take-focus(); } }
             }
-            HorizontalLayout {
+            HorizontalLayout { height: 20px;
                 Text { text: "Glass"; color: Theme.text; font-size: 16px; accessible-role: none; }
                 Text { text: "Readability limit ¦"; color: Theme.secondary; font-size: 14px; horizontal-alignment: right; accessible-role: none; }
             }
             glass-slider := UnitSlider { name: "Glass"; minimum: 0; maximum: 100; value: Theme.glass; marker: Theme.glass-limit;
                 changed value => { Theme.glass = self.value; } tab-next => { corner-slider.take-focus(); } tab-prev => { sw6.take-focus(); } }
-            HorizontalLayout {
+            HorizontalLayout { height: 20px;
                 Text { text: "Corner rounding"; color: Theme.text; font-size: 16px; accessible-role: none; }
                 Text { text: Math.round(Theme.radius) + " px"; color: Theme.secondary; font-size: 14px; horizontal-alignment: right; accessible-role: none; }
             }
             corner-slider := UnitSlider { name: "Corner rounding"; minimum: 0; maximum: 32; value: Theme.radius;
                 changed value => { Theme.radius = self.value; } tab-next => { shape0.take-focus(); } tab-prev => { glass-slider.take-focus(); } }
-            Text { text: "Icon shape"; color: Theme.text; font-size: 16px; }
+            Text { height: 20px; text: "Icon shape"; color: Theme.text; font-size: 16px; }
             HorizontalLayout { alignment: start; spacing: 12px;
             shape0 := Choice { width: 48px; height: 48px; show-label: false; label: "Square"; checked: Theme.shape-index == 0;
                 border-radius: 0px; background: Theme.accent-soft; border-width: self.checked ? 2px : 0px; border-color: Theme.accent;

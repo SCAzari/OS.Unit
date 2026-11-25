@@ -83,6 +83,10 @@ impl CompositorHandler for UnitState {
 
         self.popups.commit(surface);
         if let Some(PopupKind::InputMethod(ref popup)) = self.popups.find_popup(surface) {
+            // Place the candidate window just below the text cursor, not over it (Smithay puts it
+            // at the cursor rectangle's corner and leaves placement to the compositor).
+            let rect = popup.text_input_rectangle();
+            popup.set_location((rect.loc.x, rect.loc.y + rect.size.h).into());
             let size = smithay::backend::renderer::utils::with_renderer_surface_state(surface, |s| s.surface_size())
                 .flatten();
             tracing::info!(

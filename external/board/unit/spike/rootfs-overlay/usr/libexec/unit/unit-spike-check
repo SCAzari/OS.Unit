@@ -52,6 +52,12 @@ ime)
 	$P text "Search settings (test field)"
 	sleep 3
 	;;
+text-read)
+	# Experiment: read the empty search field over AT-SPI once (does any text read crash Qt?).
+	$P text "Search settings (test field)"
+	sleep 5
+	pidof unit-spike-qt unit-spike-slint >/dev/null && say "app still running" || say "app not running"
+	;;
 touch-tap)
 	$P extents sign-in 5
 	say "touch-ready"

@@ -27,7 +27,7 @@ Rectangle {
         Accessible.focusable: true
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            visible: input.text === "" && input.preeditText === ""
+            visible: input.text === "" && !input.activeFocus
             text: "Search settings (test field)"; color: Theme.secondary
             font: input.font
             Accessible.ignored: true

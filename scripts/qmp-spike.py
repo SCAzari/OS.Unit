@@ -224,7 +224,7 @@ elif test == "ime":
             key(q, c); time.sleep(0.15)
         time.sleep(1); shot(q, "4-preedit")
         key(q, "spc"); time.sleep(1.5); shot(q, "5-converted")
-        key(q, "ret"); time.sleep(1.5); shot(q, "6-committed")
+        key(q, "ret"); time.sleep(6); shot(q, "6-committed")
 
 elif test == "touch-tap":
     k = extents("5")

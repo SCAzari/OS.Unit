@@ -41,4 +41,7 @@ for tk in qt slint; do
 	boot $tk settings touch-drag
 done
 boot qt settings ime unit.spike_im=fcitx
+# Experiment: one AT-SPI text read of the empty field.
+boot qt settings text-read
+boot slint settings text-read
 echo "Results in $RES"

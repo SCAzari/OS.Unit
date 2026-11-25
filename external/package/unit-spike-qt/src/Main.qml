@@ -15,6 +15,7 @@ Window {
         sourceComponent: window.page === "sign-in" ? signIn : (window.page === "display" ? display : settings)
     }
     Component { id: signIn; SignIn {} }
-    Component { id: settings; SettingsHome { onOpenDisplay: window.page = "display" } }
-    Component { id: display; DisplayAppearance { onBack: window.page = "settings" } }
+    // The page is changed after the handler that asked for it returns (the old page is destroyed).
+    Component { id: settings; SettingsHome { onOpenDisplay: Qt.callLater(() => window.page = "display") } }
+    Component { id: display; DisplayAppearance { onBack: Qt.callLater(() => window.page = "settings") } }
 }

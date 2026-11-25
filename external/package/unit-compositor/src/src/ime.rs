@@ -29,6 +29,7 @@ pub fn init(dh: &DisplayHandle) {
 
 impl InputMethodHandler for UnitState {
     fn new_popup(&mut self, surface: PopupSurface) {
+        tracing::info!("input method popup: new (parent known: {})", surface.get_parent().is_some());
         if let Err(err) = self.popups.track_popup(PopupKind::from(surface)) {
             tracing::warn!("input method popup: {}", err);
         }
@@ -37,6 +38,7 @@ impl InputMethodHandler for UnitState {
     fn popup_repositioned(&mut self, _surface: PopupSurface) {}
 
     fn dismiss_popup(&mut self, surface: PopupSurface) {
+        tracing::info!("input method popup: dismissed");
         if let Some(parent) = surface.get_parent().map(|parent| parent.surface.clone()) {
             let _ = PopupManager::dismiss_popup(&parent, &PopupKind::from(surface));
         }

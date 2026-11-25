@@ -93,7 +93,7 @@ component SettingsHome inherits Rectangle {
                 accessible-label: "Search settings (test field)";
             }
         }
-        if search.text == "": Text { x: 20px; height: parent.height; vertical-alignment: center;
+        if search.text == "" && !search.has-focus: Text { x: 20px; height: parent.height; vertical-alignment: center;
             text: "Search settings (test field)"; color: Theme.secondary; font-size: 16px; accessible-role: none; }
         if search.has-focus: FocusRing { control-radius: 24px; control-width: parent.width; control-height: parent.height; }
     }

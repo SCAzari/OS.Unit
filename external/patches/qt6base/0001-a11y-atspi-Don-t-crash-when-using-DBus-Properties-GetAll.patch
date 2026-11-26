@@ -1,0 +1,36 @@
+a11y atspi: Don't crash when using DBus Properties GetAll
+
+GetAll only takes one argument, so reading the second one accesses the
+argument list out of bounds. Take the actual argument count into account.
+
+Upstream: https://github.com/qt/qtbase/commit/b703da388ce5fa24770999742cd872ed8e6aa16b
+(QTBUG-137344; in Qt 6.9.2 and 6.10). Backported to Buildroot 2026.02 LTS's Qt 6.9.1.
+
+Unit OS: UNIT-OS-DEC-0122 (toolkit spike outcome, UNIT-OS-WP-0010 issue #8).
+Without it, an assistive tool that reads properties with Properties.GetAll
+crashes the app. Drop this patch at the move to Buildroot 2027.02 (stage 3),
+whose Qt already has the fix.
+---
+ src/gui/accessible/linux/atspiadaptor.cpp | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/gui/accessible/linux/atspiadaptor.cpp b/src/gui/accessible/linux/atspiadaptor.cpp
+index 6154af009500..e0cd5aee25c9 100644
+--- a/src/gui/accessible/linux/atspiadaptor.cpp
++++ b/src/gui/accessible/linux/atspiadaptor.cpp
+@@ -1462,9 +1462,12 @@ bool AtSpiAdaptor::handleMessage(const QDBusMessage &message, const QDBusConnect
+ 
+     // handle properties like regular functions
+     if (interface == "org.freedesktop.DBus.Properties"_L1) {
+-        interface = message.arguments().at(0).toString();
+-        // Get/Set + Name
+-        function = message.member() + message.arguments().at(1).toString();
++        const auto arguments = message.arguments();
++        if (arguments.size() > 0) {
++            interface = arguments.at(0).toString();
++            if (arguments.size() > 1) // e.g. Get/Set + Name
++                function = function + arguments.at(1).toString();
++        }
+     }
+ 
+     // switch interface to call

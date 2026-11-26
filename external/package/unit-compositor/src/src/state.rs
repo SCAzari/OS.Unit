@@ -3,7 +3,7 @@
 use std::{ffi::OsString, sync::Arc, time::Instant};
 
 use smithay::{
-    desktop::{PopupManager, Space, Window, WindowSurfaceType},
+    desktop::{layer_map_for_output, PopupManager, Space, Window, WindowSurfaceType},
     input::{Seat, SeatState},
     reexports::{
         calloop::{generic::Generic, EventLoop, Interest, Mode, PostAction},
@@ -13,12 +13,15 @@ use smithay::{
             Display, DisplayHandle,
         },
     },
-    utils::{Logical, Point},
+    utils::{Logical, Point, Rectangle},
     wayland::{
         compositor::{CompositorClientState, CompositorState},
         output::OutputManagerState,
         selection::data_device::DataDeviceState,
-        shell::xdg::XdgShellState,
+        shell::{
+            wlr_layer::{Layer, WlrLayerShellState},
+            xdg::XdgShellState,
+        },
         shm::ShmState,
         socket::ListeningSocketSource,
     },
@@ -35,9 +38,16 @@ pub struct UnitState {
     /// recently raised one is on top.
     pub space: Space<Window>,
     pub popups: PopupManager,
+    /// Application windows the Shell UI has minimised (Home), most recently minimised last. They
+    /// are out of the space, so not drawn and not under input, until activated again.
+    pub minimized: Vec<Window>,
 
     pub compositor_state: CompositorState,
     pub xdg_shell_state: XdgShellState,
+    /// Layer surfaces for the Shell UI (status bar, navigation bar, home, quick settings, banners).
+    pub layer_shell_state: WlrLayerShellState,
+    /// Window list and control for the Shell UI's window switcher.
+    pub toplevels: crate::toplevel::ToplevelManagerState,
     pub shm_state: ShmState,
     #[allow(dead_code)] // keeps the xdg-output global alive
     pub output_manager_state: OutputManagerState,
@@ -73,6 +83,11 @@ impl UnitState {
         let dh = display.handle();
         let compositor_state = CompositorState::new::<Self>(&dh);
         let xdg_shell_state = XdgShellState::new::<Self>(&dh);
+        let layer_shell_state = WlrLayerShellState::new_with_filter::<Self, _>(&dh, |client| {
+            crate::clients::allowed(client, crate::clients::Privilege::LayerShell)
+        });
+        let toplevels = crate::toplevel::ToplevelManagerState::new(&dh);
+        crate::ime::init(&dh);
         let shm_state = ShmState::new::<Self>(&dh, vec![]);
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let data_device_state = DataDeviceState::new::<Self>(&dh);
@@ -118,8 +133,11 @@ impl UnitState {
             display_handle: dh,
             space: Space::default(),
             popups: PopupManager::default(),
+            minimized: Vec::new(),
             compositor_state,
             xdg_shell_state,
+            layer_shell_state,
+            toplevels,
             shm_state,
             output_manager_state,
             seat_state,
@@ -133,13 +151,50 @@ impl UnitState {
         }
     }
 
-    /// The application surface, and its location in the space, under a point.
+    /// The surface under a point, and its location in the space: Shell UI layer surfaces above
+    /// the windows (overlay, then top) first, then application windows, then the layers below
+    /// them (bottom, then background, where the home screen is).
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space.element_under(pos).and_then(|(window, location)| {
+        if let Some(found) = self.layer_surface_under(pos, &[Layer::Overlay, Layer::Top]) {
+            return Some(found);
+        }
+        if let Some(found) = self.space.element_under(pos).and_then(|(window, location)| {
             window
                 .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
                 .map(|(surface, p)| (surface, (p + location).to_f64()))
+        }) {
+            return Some(found);
+        }
+        self.layer_surface_under(pos, &[Layer::Bottom, Layer::Background])
+    }
+
+    /// The layer surface (with its popups) under a point on one of the given layers, in order.
+    pub fn layer_surface_under(
+        &self,
+        pos: Point<f64, Logical>,
+        layers: &[Layer],
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        let output = self.space.outputs().next()?;
+        let output_loc = self.space.output_geometry(output)?.loc;
+        let map = layer_map_for_output(output);
+        layers.iter().find_map(|layer| {
+            let surface = map.layer_under(*layer, pos - output_loc.to_f64())?;
+            let geo = map.layer_geometry(surface)?;
+            let loc = output_loc + geo.loc;
+            surface
+                .surface_under(pos - loc.to_f64(), WindowSurfaceType::ALL)
+                .map(|(s, p)| (s, (p + loc).to_f64()))
         })
+    }
+
+    /// Area of the display that application windows fill: the display less the zones that the
+    /// Shell UI's layer surfaces keep for themselves (for example the status bar).
+    pub fn window_area(&self) -> Option<Rectangle<i32, Logical>> {
+        let output = self.space.outputs().next()?;
+        let output_geo = self.space.output_geometry(output)?;
+        let mut zone = layer_map_for_output(output).non_exclusive_zone();
+        zone.loc += output_geo.loc;
+        Some(if zone.size.w > 0 && zone.size.h > 0 { zone } else { output_geo })
     }
 
     /// Size of the display in the space (the first output), if one is connected.
@@ -154,6 +209,9 @@ impl UnitState {
 #[derive(Default)]
 pub struct ClientState {
     pub compositor_state: CompositorClientState,
+    /// Applications connect through the Wayland socket; the compositor starts the Shell UI and
+    /// the input method with connections that carry their roles (see clients.rs).
+    pub role: crate::clients::ClientRole,
 }
 
 impl ClientData for ClientState {

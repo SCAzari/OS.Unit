@@ -430,6 +430,11 @@ impl UnitState {
                 Some(output.clone())
             });
         });
+        for layer in smithay::desktop::layer_map_for_output(&output).layers() {
+            layer.send_frame(&output, elapsed, Some(Duration::ZERO), |_, _: &SurfaceData| {
+                Some(output.clone())
+            });
+        }
 
         if !backend.frame_pending && !backend.redraw_scheduled {
             backend.redraw_scheduled = true;

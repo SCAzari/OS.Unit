@@ -5,10 +5,14 @@
 //! renders with OpenGL ES, takes keyboard, pointer and touch input through libinput, and shows
 //! applications in the compact (phone) layout: one application window fills the display at a time.
 
+mod clients;
 mod handlers;
+mod ime;
 mod input;
+mod layer;
 mod layout;
 mod state;
+mod toplevel;
 mod udev;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
@@ -21,19 +25,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut event_loop: EventLoop<UnitState> = EventLoop::try_new()?;
     let display: Display<UnitState> = Display::new()?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let launch = clients::Launch::parse(&args)?;
     let mut state = UnitState::new(&mut event_loop, display);
 
     udev::init(&mut event_loop, &mut state)?;
 
-    // Optional first client, for development and the demonstration build:
-    //   unit-compositor --command <program> [args...]
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("--command") && args.len() > 1 {
-        let mut cmd = std::process::Command::new(&args[1]);
-        cmd.args(&args[2..]).env("WAYLAND_DISPLAY", &state.socket_name);
-        if let Err(err) = cmd.spawn() {
-            tracing::warn!("could not start {}: {}", args[1], err);
-        }
+    // The Shell UI and the input method, each with a connection that carries its role, restarted
+    // if they exit; an ordinary first client for development and test boots (clients.rs).
+    let handle = event_loop.handle();
+    if let Some(program) = launch.shell {
+        clients::supervise(&handle, &mut state, program, clients::ClientRole::Shell);
+    }
+    if let Some(program) = launch.input_method {
+        clients::supervise(&handle, &mut state, program, clients::ClientRole::InputMethod);
+    }
+    if let Some(command) = launch.command {
+        clients::spawn_app(&state, &command);
     }
 
     tracing::info!(
@@ -44,6 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     event_loop.run(None, &mut state, |state| {
         state.space.refresh();
         state.popups.cleanup();
+        for output in state.space.outputs() {
+            smithay::desktop::layer_map_for_output(output).cleanup();
+        }
+        state.refresh_toplevels();
         let _ = state.display_handle.flush_clients();
     })?;
     Ok(())

@@ -1,0 +1,43 @@
+name: Toolkit spike re-test
+# Spike branch only (UNIT-OS-WP-0010), never merged. Re-runs chosen spike boots on a GitHub-hosted
+# machine with KVM, using the image an earlier "Build Unit OS" run built, so a test-only change
+# does not need a new multi-hour image build. Triggered by a push that changes this file; the
+# run and the boots to repeat are set below.
+on:
+  push:
+    branches: [spike/toolkit-2026.08]
+    paths: [.github/workflows/spike-retest.yml]
+env:
+  IMAGE_RUN_ID: "45800498053"            # "Build Unit OS" run whose image is tested
+  SPIKE_ONLY: "slint-touch-drag-settings qt-touch-drag-settings"
+jobs:
+  retest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get update -o Acquire::Retries=5
+          sudo -E apt-get install -y --no-install-recommends -o Acquire::Retries=5 qemu-system-x86
+          sudo chmod 666 /dev/kvm || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: unit_qemu_x86_64_spike
+          run-id: ${{ env.IMAGE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Toolkit spike tests in emulation (chosen boots)
+        timeout-minutes: 45
+        run: make UNIT_IMAGE=unit_qemu_x86_64_spike spike
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spike-retest
+          path: results/spike/
+          if-no-files-found: warn

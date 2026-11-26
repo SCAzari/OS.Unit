@@ -145,9 +145,10 @@ result = {"toolkit": toolkit, "screen": screen, "test": test}
 # physical pixels and points; Qt's Display page could not be read), so the touch tests use the
 # design layout, which both toolkits follow: key "5" and the "Display and appearance" row are at
 # the same place in both; the Corner rounding slider's track was measured from each toolkit's
-# own Display screenshot (run 5).
+# own Display screenshot. Slint's was 587 in run 5, before the Slint Display layout fix (240545d);
+# since then both toolkits draw it at 546.
 TARGETS = {"5": (206, 495), "Display and appearance": (206, 362),
-           "Corner rounding": {"qt": (206, 546), "slint": (206, 587)}}
+           "Corner rounding": {"qt": (206, 546), "slint": (206, 546)}}
 
 
 def target(name):

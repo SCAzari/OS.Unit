@@ -1,0 +1,7 @@
+config BR2_PACKAGE_EXTRA_CMAKE_MODULES
+	bool
+	help
+	  CMake modules from KDE, needed to build Fcitx5 and its add-ons.
+	  Staging only. Buildroot's kf5-extra-cmake-modules needs Qt 5.
+
+	  https://invent.kde.org/frameworks/extra-cmake-modules

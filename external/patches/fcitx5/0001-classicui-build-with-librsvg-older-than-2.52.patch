@@ -1,0 +1,27 @@
+From: Unit OS spike <noreply@anthropic.com>
+Subject: [PATCH] classicui: build with librsvg older than 2.52
+
+rsvg_handle_get_intrinsic_size_in_pixels() appeared in librsvg 2.52.
+Buildroot 2026.08.1 ships librsvg 2.50.9, so fall back to
+rsvg_handle_get_dimensions() there.
+
+Toolkit spike only (UNIT-OS-WP-0010, branch spike/toolkit-2026.08).
+
+--- a/src/ui/classic/theme.cpp	2026-11-26 03:25:41.509536539 +0000
++++ b/src/ui/classic/theme.cpp	2026-11-26 03:25:50.499607099 +0000
+@@ -239,7 +239,15 @@
+ std::optional<std::pair<int, int>> svgSize(RsvgHandle *svg) {
+     double w = 0;
+     double h = 0;
++#if LIBRSVG_CHECK_VERSION(2, 52, 0)
+     if (rsvg_handle_get_intrinsic_size_in_pixels(svg, &w, &h)) {
++#else
++    RsvgDimensionData dimensions{};
++    rsvg_handle_get_dimensions(svg, &dimensions);
++    w = dimensions.width;
++    h = dimensions.height;
++    if (w > 0 && h > 0) {
++#endif
+         int width = std::max(1, static_cast<int>(std::ceil(w)));
+         int height = std::max(1, static_cast<int>(std::ceil(h)));
+         return std::make_pair(width, height);

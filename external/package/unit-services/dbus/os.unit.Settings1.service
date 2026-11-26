@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=os.unit.Settings1
+Exec=/usr/bin/unit-settings
+SystemdService=unit-settings.service

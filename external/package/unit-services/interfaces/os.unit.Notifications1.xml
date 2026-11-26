@@ -1,0 +1,61 @@
+<!-- os.unit.Notifications1 D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="os.unit.Notifications1">
+  <!--
+   The notification centre, newest first: id, application, icon, summary, body, time
+   (seconds since 1970) and the action keys and labels.
+   -->
+  <method name="History">
+    <arg type="a(ussssxa(ss))" direction="out"/>
+  </method>
+  <!--
+   The user opened a notification: its application gets its "default" action, and it leaves
+   the centre. Returns false if it was no longer there.
+   -->
+  <method name="Open">
+    <arg name="id" type="u" direction="in"/>
+    <arg type="b" direction="out"/>
+  </method>
+  <!--
+   The user chose one of a notification's actions.
+   -->
+  <method name="InvokeAction">
+    <arg name="id" type="u" direction="in"/>
+    <arg name="action_key" type="s" direction="in"/>
+    <arg type="b" direction="out"/>
+  </method>
+  <!--
+   The user dismissed a notification.
+   -->
+  <method name="Dismiss">
+    <arg name="id" type="u" direction="in"/>
+    <arg type="b" direction="out"/>
+  </method>
+  <!--
+   The user cleared the centre.
+   -->
+  <method name="DismissAll">
+  </method>
+  <!--
+   Show a banner for a new notification.
+   -->
+  <signal name="Banner">
+    <arg name="id" type="u"/>
+    <arg name="app_name" type="s"/>
+    <arg name="app_icon" type="s"/>
+    <arg name="summary" type="s"/>
+    <arg name="body" type="s"/>
+  </signal>
+  <!--
+   The history changed: read it again.
+   -->
+  <signal name="HistoryChanged">
+  </signal>
+  <!--
+   Do not disturb: when on, new notifications go to the centre without a banner.
+   -->
+  <property name="DoNotDisturb" type="b" access="readwrite"/>
+  <!--
+   The interface version.
+   -->
+  <property name="Version" type="u" access="read"/>
+</interface>

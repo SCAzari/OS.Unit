@@ -1,0 +1,38 @@
+<!-- org.freedesktop.Notifications D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="org.freedesktop.Notifications">
+  <method name="GetCapabilities">
+    <arg type="as" direction="out"/>
+  </method>
+  <!--
+   Expiry times are not used: notifications stay in the centre until dismissed, and the
+   Shell UI times its banners.
+   -->
+  <method name="Notify">
+    <arg name="app_name" type="s" direction="in"/>
+    <arg name="replaces_id" type="u" direction="in"/>
+    <arg name="app_icon" type="s" direction="in"/>
+    <arg name="summary" type="s" direction="in"/>
+    <arg name="body" type="s" direction="in"/>
+    <arg name="actions" type="as" direction="in"/>
+    <arg name="hints" type="a{sv}" direction="in"/>
+    <arg name="_expire_timeout" type="i" direction="in"/>
+    <arg type="u" direction="out"/>
+  </method>
+  <method name="CloseNotification">
+    <arg name="id" type="u" direction="in"/>
+  </method>
+  <method name="GetServerInformation">
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+  </method>
+  <signal name="NotificationClosed">
+    <arg name="id" type="u"/>
+    <arg name="reason" type="u"/>
+  </signal>
+  <signal name="ActionInvoked">
+    <arg name="id" type="u"/>
+    <arg name="action_key" type="s"/>
+  </signal>
+</interface>

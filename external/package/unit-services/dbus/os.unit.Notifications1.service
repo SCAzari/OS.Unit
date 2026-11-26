@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=os.unit.Notifications1
+Exec=/usr/bin/unit-notifications
+SystemdService=unit-notifications.service

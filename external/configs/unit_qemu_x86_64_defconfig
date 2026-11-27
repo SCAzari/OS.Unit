@@ -70,6 +70,8 @@ BR2_PACKAGE_QT6DECLARATIVE_QUICK=y
 BR2_PACKAGE_QT6SHADERTOOLS=y
 BR2_PACKAGE_QT6SVG=y
 BR2_PACKAGE_QT6WAYLAND=y
+# Layer surfaces for the Shell UI (wlr-layer-shell, Software Architecture §4).
+BR2_PACKAGE_LAYER_SHELL_QT=y
 # Accessibility bus. Its launcher aborts without a GSettings schema source.
 BR2_PACKAGE_AT_SPI2_CORE=y
 BR2_PACKAGE_GSETTINGS_DESKTOP_SCHEMAS=y

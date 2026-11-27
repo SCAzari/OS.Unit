@@ -1,0 +1,14 @@
+config BR2_PACKAGE_LAYER_SHELL_QT
+	bool "layer-shell-qt"
+	depends on BR2_PACKAGE_QT6WAYLAND
+	depends on BR2_PACKAGE_QT6DECLARATIVE
+	select BR2_PACKAGE_EXTRA_CMAKE_MODULES
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_WAYLAND_PROTOCOLS
+	help
+	  Qt 6 support for the wlr-layer-shell Wayland protocol, so the
+	  Shell UI can place its status bar, navigation bar, panels,
+	  banners and home screen as layer surfaces (UNIT-OS-WP-0009).
+	  Includes the org.kde.layershell QML module.
+
+	  https://invent.kde.org/plasma/layer-shell-qt

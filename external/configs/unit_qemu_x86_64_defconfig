@@ -49,6 +49,8 @@ BR2_PACKAGE_LINUX_PAM=y
 BR2_PACKAGE_SEATD=y
 BR2_PACKAGE_SEATD_BUILTIN=y
 BR2_PACKAGE_UNIT_COMPOSITOR=y
+# Settings, Notification and Session services for the Shell UI (UNIT-OS-WP-0009).
+BR2_PACKAGE_UNIT_SERVICES=y
 # Shell UI toolkit: Qt 6 QML (Decision UNIT-OS-DEC-0122; Software Architecture r1.16 §5.2), on
 # Wayland with OpenGL ES and the AT-SPI accessibility bridge over D-Bus. Buildroot 2026.02 LTS
 # gives Qt 6.9.1; the bridge fix is in external/patches/qt6base.

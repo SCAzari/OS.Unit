@@ -1,0 +1,52 @@
+<!-- os.unit.Settings1 D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="os.unit.Settings1">
+  <!--
+   The current value of a setting.
+   -->
+  <method name="Get">
+    <arg name="key" type="s" direction="in"/>
+    <arg type="v" direction="out"/>
+  </method>
+  <!--
+   Every setting and its current value.
+   -->
+  <method name="GetAll">
+    <arg type="a{sv}" direction="out"/>
+  </method>
+  <!--
+   Checks a value against the setting's type and limits, stores it and saves it.
+   -->
+  <method name="Set">
+    <arg name="key" type="s" direction="in"/>
+    <arg name="value" type="v" direction="in"/>
+  </method>
+  <!--
+   Returns to the defaults every setting whose key starts with `prefix`: "appearance." for
+   Reset to default in Display and appearance, "" for everything.
+   -->
+  <method name="Reset">
+    <arg name="prefix" type="s" direction="in"/>
+  </method>
+  <!--
+   A setting's type ("bool", "int" or "choice"), default and limits: "min" and "max" for
+   whole numbers, "options" for choices, and "simulated" when nothing is behind the setting
+   yet in emulation.
+   -->
+  <method name="Describe">
+    <arg name="key" type="s" direction="in"/>
+    <arg type="s" direction="out"/>
+    <arg type="v" direction="out"/>
+    <arg type="a{sv}" direction="out"/>
+  </method>
+  <!--
+   A setting changed, by anyone.
+   -->
+  <signal name="Changed">
+    <arg name="key" type="s"/>
+    <arg name="value" type="v"/>
+  </signal>
+  <!--
+   The interface version.
+   -->
+  <property name="Version" type="u" access="read"/>
+</interface>

@@ -1,0 +1,15 @@
+config BR2_PACKAGE_UNIT_SERVICES
+	bool "unit-services"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on BR2_INIT_SYSTEMD
+	depends on BR2_PACKAGE_DBUS_BROKER
+	select BR2_PACKAGE_HOST_RUSTC
+	help
+	  Unit Settings, Notification and Session services, first
+	  slice for the Shell UI (UNIT-OS-WP-0009; Software
+	  Architecture r1.16 section 4). Each runs as a systemd user
+	  service on the session bus, started when first called.
+
+comment "unit-services needs systemd and dbus-broker"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on !BR2_INIT_SYSTEMD || !BR2_PACKAGE_DBUS_BROKER

@@ -1,0 +1,39 @@
+<!-- os.unit.Session1 D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="os.unit.Session1">
+  <!--
+   The installed applications, by name: ID, name, icon name and comment.
+   -->
+  <method name="ListApps">
+    <arg type="a(ssss)" direction="out"/>
+  </method>
+  <!--
+   Starts an application by its ID. Returns its process ID.
+   -->
+  <method name="Launch">
+    <arg name="app_id" type="s" direction="in"/>
+    <arg type="u" direction="out"/>
+  </method>
+  <!--
+   Asks an application to save before the user closes it, and waits up to the deadline.
+   Returns the outcome ("saved", "not-registered", "no-response" or "failed") and the state
+   token it returned. The Shell UI then closes the window.
+   -->
+  <method name="PrepareClose">
+    <arg name="app_id" type="s" direction="in"/>
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+  </method>
+  <!--
+   An application started by this service exited, with its exit code (128 plus the signal
+   number if a signal stopped it).
+   -->
+  <signal name="AppExited">
+    <arg name="app_id" type="s"/>
+    <arg name="pid" type="u"/>
+    <arg name="code" type="i"/>
+  </signal>
+  <!--
+   The interface version.
+   -->
+  <property name="Version" type="u" access="read"/>
+</interface>

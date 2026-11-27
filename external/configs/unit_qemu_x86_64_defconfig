@@ -34,7 +34,7 @@ BR2_PACKAGE_VULKAN_TOOLS=y
 BR2_PACKAGE_UNIT_RELEASE=y
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
-BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
+BR2_TARGET_ROOTFS_EXT2_SIZE="1024M"
 # BR2_TARGET_ROOTFS_TAR is not set
 BR2_PACKAGE_UNIT_FIRMWARE=y
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_UNIT_PATH)/patches"
@@ -51,3 +51,34 @@ BR2_PACKAGE_SEATD_BUILTIN=y
 BR2_PACKAGE_UNIT_COMPOSITOR=y
 # Settings, Notification and Session services for the Shell UI (UNIT-OS-WP-0009).
 BR2_PACKAGE_UNIT_SERVICES=y
+# Shell UI toolkit: Qt 6 QML (Decision UNIT-OS-DEC-0122; Software Architecture r1.16 §5.2), on
+# Wayland with OpenGL ES and the AT-SPI accessibility bridge over D-Bus. Buildroot 2026.02 LTS
+# gives Qt 6.9.1; the bridge fix is in external/patches/qt6base.
+BR2_PACKAGE_QT6=y
+BR2_PACKAGE_QT6BASE_DBUS=y
+BR2_PACKAGE_QT6BASE_GUI=y
+BR2_PACKAGE_QT6BASE_DEFAULT_QPA="wayland"
+BR2_PACKAGE_QT6BASE_OPENGL=y
+BR2_PACKAGE_QT6BASE_OPENGL_ES2=y
+BR2_PACKAGE_QT6BASE_FONTCONFIG=y
+BR2_PACKAGE_QT6BASE_HARFBUZZ=y
+BR2_PACKAGE_QT6BASE_PNG=y
+# Widgets: needed only by the Fcitx5 Qt input module; the Shell UI uses Qt Quick.
+BR2_PACKAGE_QT6BASE_WIDGETS=y
+BR2_PACKAGE_QT6DECLARATIVE=y
+BR2_PACKAGE_QT6DECLARATIVE_QUICK=y
+BR2_PACKAGE_QT6SHADERTOOLS=y
+BR2_PACKAGE_QT6SVG=y
+BR2_PACKAGE_QT6WAYLAND=y
+# Accessibility bus. Its launcher aborts without a GSettings schema source.
+BR2_PACKAGE_AT_SPI2_CORE=y
+BR2_PACKAGE_GSETTINGS_DESKTOP_SCHEMAS=y
+# Fonts (Visual Design Specification §9).
+BR2_PACKAGE_FONTCONFIG=y
+BR2_PACKAGE_FONT_INTER=y
+BR2_PACKAGE_FONT_NOTO_SANS_CJK_JP=y
+# Japanese input through Fcitx5 (Software Architecture §4, input methods), with Anthy as the
+# engine in emulation; the engine for release is not decided yet.
+BR2_PACKAGE_FCITX5=y
+BR2_PACKAGE_FCITX5_QT=y
+BR2_PACKAGE_FCITX5_ANTHY=y

@@ -1,0 +1,31 @@
+From: Unit OS <noreply@anthropic.com>
+Subject: [PATCH] meson: leave the dictionary tools out of cross builds
+
+A cross build cannot run the dictionary tools it builds. Buildroot builds the
+dictionary natively (host-anthy-unicode) and installs it with the target library.
+
+Upstream: not sent (Unit OS, UNIT-OS-WP-0009)
+---
+--- a/meson.build
++++ b/meson.build
+@@ -74,11 +74,15 @@
+ subdir('src-main')
+ subdir('src-util')
+ subdir('anthy')
+-subdir('depgraph')
+-subdir('mkworddic')
+-subdir('calctrans')
+-subdir('mkanthydic')
+-subdir('test')
++# A cross build cannot run the dictionary tools it builds; the dictionary is built natively
++# and installed with the cross-built library (Unit OS).
++if not meson.is_cross_build()
++  subdir('depgraph')
++  subdir('mkworddic')
++  subdir('calctrans')
++  subdir('mkanthydic')
++  subdir('test')
++endif
+ #subdir('doc')
+ #subdir('alt-cannadic')
+ 

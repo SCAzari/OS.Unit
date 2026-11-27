@@ -1,0 +1,6 @@
+config BR2_PACKAGE_ISO_CODES
+	bool
+	help
+	  ISO country, language and script names, needed by the Fcitx5 keyboard engine.
+
+	  https://salsa.debian.org/iso-codes-team/iso-codes

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=os.unit.Session1
+Exec=/usr/bin/unit-session
+SystemdService=unit-session.service

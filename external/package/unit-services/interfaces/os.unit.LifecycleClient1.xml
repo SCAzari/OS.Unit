@@ -1,0 +1,11 @@
+<!-- os.unit.LifecycleClient1 D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="os.unit.LifecycleClient1">
+  <!--
+   Save now, within `deadline_ms` milliseconds; return a state token that Restore will
+   give back (empty if there is nothing to restore).
+   -->
+  <method name="SaveState">
+    <arg name="_deadline_ms" type="u" direction="in"/>
+    <arg type="s" direction="out"/>
+  </method>
+</interface>

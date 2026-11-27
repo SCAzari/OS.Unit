@@ -1,0 +1,17 @@
+<!-- os.unit.Lifecycle1 D-Bus interface (UNIT-OS-WP-0009). Checked by the services' unit tests. -->
+<interface name="os.unit.Lifecycle1">
+  <!--
+   Takes part in the lifecycle: the caller will be asked to save (SaveState on
+   `/os/unit/LifecycleClient1`) before it is closed. The ID must be an installed application.
+   -->
+  <method name="Register">
+    <arg name="app_id" type="s" direction="in"/>
+  </method>
+  <method name="Unregister">
+    <arg name="app_id" type="s" direction="in"/>
+  </method>
+  <!--
+   The interface version.
+   -->
+  <property name="Version" type="u" access="read"/>
+</interface>

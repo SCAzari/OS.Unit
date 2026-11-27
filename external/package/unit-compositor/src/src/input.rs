@@ -195,8 +195,12 @@ impl UnitState {
         }
     }
 
-    /// Raises the window under a point and gives it keyboard focus.
+    /// Gives keyboard focus to what is under a point: a Shell UI layer surface above the windows
+    /// that takes keyboard input, or else the window there, which is raised.
     fn focus_window_at(&mut self, pos: Point<f64, Logical>) {
+        if self.focus_layer_at(pos) {
+            return;
+        }
         let serial = SERIAL_COUNTER.next_serial();
         let window = self.space.element_under(pos).map(|(w, _)| w.clone());
         if let Some(window) = window {

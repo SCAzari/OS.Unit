@@ -1,7 +1,10 @@
-//! Wayland protocol handlers: compositor, shared memory, seat, data device, output and xdg-shell.
+//! Wayland protocol handlers: compositor, shared memory, seat, data device, output and xdg-shell,
+//! and window management.
 //!
 //! Window management follows the compact layout of the Interface Design: each application
-//! window is sized to the whole display, placed at the origin and raised with keyboard focus.
+//! window fills the window area (the display less the zones the Shell UI's layer surfaces keep,
+//! such as the status bar) and is raised with keyboard focus. The Shell UI can minimise the
+//! window on top (Home) and activate any window (the window switcher), through toplevel.rs.
 
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
@@ -16,7 +19,7 @@ use smithay::{
             Client, Resource,
         },
     },
-    utils::{Serial, SERIAL_COUNTER},
+    utils::Serial,
     wayland::{
         buffer::BufferHandler,
         compositor::{
@@ -78,11 +81,15 @@ impl CompositorHandler for UnitState {
             }
         }
 
+        self.layer_commit(surface);
+
         self.popups.commit(surface);
-        if let Some(PopupKind::Xdg(ref popup)) = self.popups.find_popup(surface) {
-            if !popup.is_initial_configure_sent() {
+        match self.popups.find_popup(surface) {
+            Some(PopupKind::Xdg(ref popup)) if !popup.is_initial_configure_sent() => {
                 popup.send_configure().expect("initial popup configure");
             }
+            Some(PopupKind::InputMethod(ref popup)) => crate::ime::place_popup(popup),
+            _ => {}
         }
     }
 }
@@ -112,6 +119,22 @@ impl SeatHandler for UnitState {
         let dh = &self.display_handle;
         let client = focused.and_then(|s| dh.get_client(s.id()).ok());
         set_data_device_focus(dh, seat, client);
+        // Only the window with keyboard focus is shown as active.
+        for window in self.space.elements() {
+            if let Some(toplevel) = window.toplevel() {
+                let active = Some(toplevel.wl_surface()) == focused;
+                toplevel.with_pending_state(|state| {
+                    if active {
+                        state.states.set(xdg_toplevel::State::Activated);
+                    } else {
+                        state.states.unset(xdg_toplevel::State::Activated);
+                    }
+                });
+                if toplevel.is_initial_configure_sent() {
+                    toplevel.send_pending_configure();
+                }
+            }
+        }
     }
 }
 
@@ -135,35 +158,43 @@ impl XdgShellHandler for UnitState {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        // Compact layout: the window takes the whole display.
-        if let Some(geo) = self.output_geometry() {
-            surface.with_pending_state(|state| {
-                state.size = Some(geo.size);
-                state.states.set(xdg_toplevel::State::Maximized);
-                state.states.set(xdg_toplevel::State::Activated);
-            });
-        }
+        // Compact layout: the window fills the window area.
+        let area = self.window_area();
+        surface.with_pending_state(|state| {
+            if let Some(area) = area {
+                state.size = Some(area.size);
+            }
+            state.states.set(xdg_toplevel::State::Maximized);
+        });
         let wl_surface = surface.wl_surface().clone();
         let window = Window::new_wayland_window(surface);
-        self.space.map_element(window, (0, 0), true);
-        let serial = SERIAL_COUNTER.next_serial();
-        if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, Some(wl_surface), serial);
-        }
-        tracing::info!("window opened ({} open)", self.space.elements().count());
+        let loc = area.map(|a| a.loc).unwrap_or_default();
+        self.space.map_element(window.clone(), loc, true);
+        let (title, app_id) = crate::toplevel::title_and_app_id(&window);
+        let dh = self.display_handle.clone();
+        self.toplevels.window_opened(
+            &dh,
+            window,
+            crate::toplevel::ToplevelInfo { title, app_id, ..Default::default() },
+        );
+        self.set_keyboard_focus(Some(wl_surface));
+        tracing::info!("window opened ({} open)", self.open_window_count());
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
-        if let Some(window) = self.window_for_surface(surface.wl_surface()) {
+        let window = self.window_for_surface(surface.wl_surface()).or_else(|| {
+            self.minimized
+                .iter()
+                .find(|w| w.toplevel().map(|t| t.wl_surface() == surface.wl_surface()).unwrap_or(false))
+                .cloned()
+        });
+        if let Some(window) = window {
             self.space.unmap_elem(&window);
+            self.minimized.retain(|w| w != &window);
+            self.toplevels.window_closed(&window);
         }
-        // Focus moves to the window now on top, if any.
-        let top = self.space.elements().last().cloned();
-        let serial = SERIAL_COUNTER.next_serial();
-        if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, top.and_then(|w| w.toplevel().map(|t| t.wl_surface().clone())), serial);
-        }
-        tracing::info!("window closed ({} open)", self.space.elements().count());
+        self.focus_top_window();
+        tracing::info!("window closed ({} open)", self.open_window_count());
     }
 
     fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
@@ -196,6 +227,74 @@ impl XdgShellHandler for UnitState {
 }
 
 impl UnitState {
+    /// Windows open, including minimised ones.
+    pub fn open_window_count(&self) -> usize {
+        self.space.elements().count() + self.minimized.len()
+    }
+
+    /// Keyboard focus to the window now on top, or to nothing (the home screen shows).
+    pub fn focus_top_window(&mut self) {
+        let top = self.space.elements().last().and_then(|w| w.toplevel().map(|t| t.wl_surface().clone()));
+        self.set_keyboard_focus(top);
+    }
+
+    /// Sizes every window, minimised ones included, to the window area and places it there.
+    pub fn fit_windows(&mut self) {
+        let Some(area) = self.window_area() else { return };
+        let windows: Vec<Window> = self.space.elements().cloned().collect();
+        for window in windows.iter().chain(self.minimized.iter()) {
+            if let Some(toplevel) = window.toplevel() {
+                toplevel.with_pending_state(|state| state.size = Some(area.size));
+                if toplevel.is_initial_configure_sent() {
+                    toplevel.send_pending_configure();
+                }
+            }
+        }
+        for window in windows {
+            self.space.map_element(window, area.loc, false);
+        }
+    }
+
+    /// Raises a window (bringing it back if minimised) and gives it keyboard focus.
+    pub fn activate_window(&mut self, window: &Window) {
+        let loc = self.window_area().map(|a| a.loc).unwrap_or_default();
+        if let Some(pos) = self.minimized.iter().position(|w| w == window) {
+            self.minimized.remove(pos);
+            self.space.map_element(window.clone(), loc, true);
+        } else {
+            self.space.raise_element(window, true);
+        }
+        self.set_keyboard_focus(window.toplevel().map(|t| t.wl_surface().clone()));
+    }
+
+    /// Takes a window out of view (Home): it stays open and the switcher can bring it back.
+    pub fn minimize_window(&mut self, window: &Window) {
+        if self.space.elements().any(|w| w == window) {
+            self.space.unmap_elem(window);
+            self.minimized.push(window.clone());
+            self.focus_top_window();
+        }
+    }
+
+    /// What the window switcher is told about a window.
+    pub fn toplevel_info(&self, window: &Window) -> crate::toplevel::ToplevelInfo {
+        let (title, app_id) = crate::toplevel::title_and_app_id(window);
+        let focus = self.seat.get_keyboard().and_then(|k| k.current_focus());
+        crate::toplevel::ToplevelInfo {
+            title,
+            app_id,
+            activated: focus.is_some() && window.toplevel().map(|t| t.wl_surface()) == focus.as_ref(),
+            minimized: self.minimized.contains(window),
+        }
+    }
+
+    /// Sends the window switcher what has changed. Called once per pass of the event loop.
+    pub fn refresh_toplevels(&mut self) {
+        let mut toplevels = std::mem::replace(&mut self.toplevels, crate::toplevel::ToplevelManagerState::empty());
+        toplevels.refresh(|w| self.toplevel_info(w));
+        self.toplevels = toplevels;
+    }
+
     pub fn window_for_surface(&self, surface: &WlSurface) -> Option<Window> {
         self.space
             .elements()

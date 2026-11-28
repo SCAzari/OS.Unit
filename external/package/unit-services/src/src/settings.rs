@@ -55,6 +55,10 @@ pub const SCHEMA: &[Spec] = &[
     // Theme and colour (Interface Design §13). Daylight is the default (UNIT-OS-DEC-0065).
     spec("appearance.theme", Kind::Choice { options: &["daylight", "night-shift", "pebble"], default: "daylight" }),
     spec("appearance.mode", Kind::Choice { options: &["light", "dark", "automatic"], default: "light" }),
+    // Automatic light/dark: dark from one time until another, in minutes after midnight; the
+    // user can change both (UNIT-OS-DEC-0155). Default 19:00 to 07:00.
+    spec("appearance.automatic-dark-from", Kind::Int { min: 0, max: 1439, default: 19 * 60 }),
+    spec("appearance.automatic-dark-until", Kind::Int { min: 0, max: 1439, default: 7 * 60 }),
     spec("appearance.accent", Kind::Choice { options: ACCENTS, default: "theme" }),
     // Glass opacity in percent, per mode: never clearer than the user limit, which keeps text at
     // 5:1 or better over any backdrop (Visual Design Specification §3.2; UNIT-OS-DEC-0063). The

@@ -1,4 +1,4 @@
-// Colour tokens of the Visual Design Specification (VDS) r1.20, and the readability rules that
+// Colour tokens of the Visual Design Specification (VDS) r2.0, and the readability rules that
 // apply to the colours a user chooses (VDS §3 and §4; Decision UNIT-OS-DEC-0063). Plain C++ with
 // no Qt, so the rules are unit-tested on any machine (tests/palette_test.cpp).
 #pragma once
@@ -45,6 +45,13 @@ extern const std::array<const char *, 7> kAccents;
 // and saturation, until it does. This reproduces every adjusted value in the VDS table.
 Rgb adjustAccent(Rgb accent, const Tokens &t, Mode mode);
 
+// Accent soft, the chip behind accent glyphs (UNIT-OS-DEC-0156): the accent mixed onto the solid
+// surface, 11.5% in light mode (within one step per channel of the published #E3F0EE for the
+// default accent; no simple mix reproduces it exactly) and 16% in dark mode (as published). Then
+// the contrast rule: the accent glyph on its chip must reach 3:1 (VDS §4.3), so the mix is
+// lessened until it does.
+Rgb accentSoft(Rgb accent, const Tokens &t, Mode mode);
+
 // Text on an accent fill: white or the theme's dark ink (its dark-mode text on accent), whichever
 // contrasts more (VDS §4.2).
 Rgb textOnAccent(Rgb accentFill, ThemeId theme);
@@ -52,5 +59,13 @@ Rgb textOnAccent(Rgb accentFill, ThemeId theme);
 // The glass opacity actually drawn: never below the theme's user limit (VDS §3.2, §4.5), and
 // solid when Reduce transparency is on.
 int glassOpacity(int requested, const Tokens &t, bool reduceTransparency);
+
+// Automatic light/dark (UNIT-OS-DEC-0155): dark from `from` until `until`, in minutes after
+// midnight (default 19:00 to 07:00); the period may cross midnight. Equal times mean never dark.
+bool automaticIsDark(int minuteOfDay, int from, int until);
+
+// Home greeting (UNIT-OS-DEC-0157): "Good morning" 05:00-11:59, "Good afternoon" 12:00-17:59,
+// "Good evening" otherwise. Returns 0 (morning), 1 (afternoon) or 2 (evening).
+int greetingFor(int hour);
 
 } // namespace unit

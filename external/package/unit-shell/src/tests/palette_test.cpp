@@ -1,5 +1,5 @@
 // Unit tests for the colour rules (palette.cpp), against the values the Visual Design
-// Specification r1.20 publishes. Plain C++: g++ -std=c++17 palette.cpp tests/palette_test.cpp
+// Specification r2.0 publishes. Plain C++: g++ -std=c++17 palette.cpp tests/palette_test.cpp
 #include "../palette.h"
 
 #include <cmath>
@@ -89,6 +89,37 @@ int main()
     check(glassOpacity(68, tokens(ThemeId::Pebble, Mode::Dark), false) == 70, "Pebble dark limit 70");
     check(glassOpacity(66, tokens(ThemeId::Daylight, Mode::Light), true) == 100, "Reduce transparency is solid");
     check(glassOpacity(150, tokens(ThemeId::Daylight, Mode::Light), false) == 100, "at most solid");
+
+    // Accent soft (UNIT-OS-DEC-0156): the default accent's chip is within one step of the published
+    // #E3F0EE, dark is the published 16% mix, and every accent's glyph reaches 3:1 on its chip.
+    {
+        const Rgb soft = accentSoft(hex("#11756B"), tokens(ThemeId::Daylight, Mode::Light), Mode::Light);
+        const Rgb published = hex("#E3F0EE");
+        check(std::abs(soft.r - published.r) <= 1 && std::abs(soft.g - published.g) <= 1 && std::abs(soft.b - published.b) <= 1,
+              "Daylight light accent soft " + toHex(soft) + " near #E3F0EE");
+        for (ThemeId theme : {ThemeId::Daylight, ThemeId::NightShift, ThemeId::Pebble})
+            for (Mode mode : {Mode::Light, Mode::Dark}) {
+                const Tokens &tk = tokens(theme, mode);
+                for (const char *a : kAccents) {
+                    const Rgb acc = adjustAccent(hex(a), tk, mode);
+                    check(contrast(acc, accentSoft(acc, tk, mode)) >= 3.0, std::string("accent glyph on chip ") + a);
+                }
+            }
+    }
+
+    // Automatic light/dark (UNIT-OS-DEC-0155), default 19:00 to 07:00.
+    check(automaticIsDark(19 * 60, 1140, 420) && automaticIsDark(23 * 60, 1140, 420) && automaticIsDark(0, 1140, 420)
+              && automaticIsDark(6 * 60 + 59, 1140, 420),
+          "dark from 19:00 to 06:59");
+    check(!automaticIsDark(7 * 60, 1140, 420) && !automaticIsDark(12 * 60, 1140, 420) && !automaticIsDark(18 * 60 + 59, 1140, 420),
+          "light from 07:00 to 18:59");
+    check(automaticIsDark(10 * 60, 9 * 60, 17 * 60) && !automaticIsDark(8 * 60, 9 * 60, 17 * 60), "period within a day");
+    check(!automaticIsDark(10 * 60, 600, 600), "equal times: never dark");
+
+    // Greeting (UNIT-OS-DEC-0157).
+    check(greetingFor(4) == 2 && greetingFor(5) == 0 && greetingFor(11) == 0 && greetingFor(12) == 1
+              && greetingFor(17) == 1 && greetingFor(18) == 2 && greetingFor(23) == 2,
+          "greeting times");
 
     check(themeFromName("night-shift") == ThemeId::NightShift && themeFromName("pebble") == ThemeId::Pebble &&
               themeFromName("daylight") == ThemeId::Daylight && themeFromName("neon") == ThemeId::Daylight,

@@ -1,10 +1,11 @@
-// The design tokens the QML draws with (Visual Design Specification r1.20 §3), worked out from
+// The design tokens the QML draws with (Visual Design Specification r2.0 §3), worked out from
 // the user's appearance settings with the readability rules applied (palette.h). Every colour,
 // radius and opacity in the Shell UI comes from here; QML never writes a colour of its own.
 #pragma once
 
 #include <QColor>
 #include <QObject>
+#include <QTimer>
 
 class SettingsClient;
 
@@ -39,6 +40,10 @@ class Theme : public QObject
 public:
     explicit Theme(SettingsClient *settings, QObject *parent = nullptr);
 
+    // The home greeting for an hour of the day (UNIT-OS-DEC-0157). The user's name is added once
+    // a profile service exists.
+    Q_INVOKABLE QString greeting(int hour) const;
+
     bool dark() const { return m_dark; }
     QString themeName() const { return m_themeName; }
     QColor background() const { return m_background; }
@@ -68,7 +73,9 @@ signals:
 
 private:
     void update();
+    bool darkNow() const;
     SettingsClient *m_settings;
+    QTimer m_minute;
     bool m_dark = false;
     QString m_themeName;
     QColor m_background, m_surface, m_surface2, m_text, m_secondary, m_accent, m_accentSoft, m_textOnAccent;

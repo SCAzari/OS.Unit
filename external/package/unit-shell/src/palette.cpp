@@ -181,6 +181,21 @@ Rgb adjustAccent(Rgb accent, const Tokens &t, Mode mode)
     return c;
 }
 
+Rgb accentSoft(Rgb accent, const Tokens &t, Mode mode)
+{
+    const auto mix = [&](double a) {
+        auto ch = [a](uint8_t fg, uint8_t bg) { return uint8_t(std::lround(fg * a + bg * (1.0 - a))); };
+        return Rgb{ch(accent.r, t.surface.r), ch(accent.g, t.surface.g), ch(accent.b, t.surface.b)};
+    };
+    double a = mode == Mode::Dark ? 0.16 : 0.115;
+    Rgb soft = mix(a);
+    while (a > 0.0 && contrast(accent, soft) < 3.0) {
+        a = std::max(0.0, a - 0.005);
+        soft = mix(a);
+    }
+    return soft;
+}
+
 Rgb textOnAccent(Rgb accentFill, ThemeId theme)
 {
     const Rgb white{255, 255, 255};
@@ -193,6 +208,24 @@ int glassOpacity(int requested, const Tokens &t, bool reduceTransparency)
     if (reduceTransparency)
         return 100;
     return std::clamp(requested, t.glassUserLimit, 100);
+}
+
+bool automaticIsDark(int minuteOfDay, int from, int until)
+{
+    if (from == until)
+        return false;
+    if (from < until)
+        return minuteOfDay >= from && minuteOfDay < until;
+    return minuteOfDay >= from || minuteOfDay < until; // crosses midnight
+}
+
+int greetingFor(int hour)
+{
+    if (hour >= 5 && hour < 12)
+        return 0;
+    if (hour >= 12 && hour < 18)
+        return 1;
+    return 2;
 }
 
 } // namespace unit

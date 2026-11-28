@@ -33,10 +33,6 @@ Window {
         repeat: true
         onTriggered: home.now = new Date()
     }
-    function greeting(hour) {
-        return hour < 5 ? qsTr("Good evening") : hour < 12 ? qsTr("Good morning")
-             : hour < 18 ? qsTr("Good afternoon") : qsTr("Good evening")
-    }
     function isPinned(appId) { return pinned.indexOf(appId) >= 0 }
 
     // Time and date (VDS display type, 56).
@@ -55,7 +51,7 @@ Window {
             Accessible.name: qsTr("Time %1").arg(text)
         }
         Text {
-            text: Qt.formatDate(home.now, "dddd d MMMM") + " · " + home.greeting(home.now.getHours())
+            text: Qt.formatDate(home.now, "dddd d MMMM") + " · " + Theme.greeting(home.now.getHours())
             color: Theme.secondary
             font.family: Theme.fontFamily
             font.pixelSize: 16

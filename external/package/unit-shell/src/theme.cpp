@@ -3,6 +3,8 @@
 #include "palette.h"
 #include "settings.h"
 
+#include <QTime>
+
 namespace {
 QColor qcolor(unit::Rgb c, qreal alpha = 1.0)
 {
@@ -11,17 +13,6 @@ QColor qcolor(unit::Rgb c, qreal alpha = 1.0)
     return q;
 }
 
-// Accent soft (VDS §3.1): a light tint of the accent behind accent glyphs. The VDS gives it for
-// the default accent only (#E3F0EE light, the accent at 16% dark); for every accent it is the
-// accent at 12% over the solid surface in light mode, and at 16% in dark mode.
-QColor softAccent(unit::Rgb accent, unit::Rgb surface, bool dark)
-{
-    if (dark)
-        return qcolor(accent, 0.16);
-    const double a = 0.12;
-    auto mix = [a](uint8_t fg, uint8_t bg) { return int(fg * a + bg * (1 - a) + 0.5); };
-    return QColor(mix(accent.r, surface.r), mix(accent.g, surface.g), mix(accent.b, surface.b));
-}
 } // namespace
 
 Theme::Theme(SettingsClient *settings, QObject *parent)
@@ -29,7 +20,38 @@ Theme::Theme(SettingsClient *settings, QObject *parent)
     , m_settings(settings)
 {
     connect(settings, &SettingsClient::valuesChanged, this, &Theme::update);
+    // Automatic light/dark changes with the time: look again on every minute.
+    m_minute.setInterval(60 * 1000);
+    connect(&m_minute, &QTimer::timeout, this, [this] {
+        if (darkNow() != m_dark)
+            update();
+    });
+    m_minute.start();
     update();
+}
+
+QString Theme::greeting(int hour) const
+{
+    switch (unit::greetingFor(hour)) {
+    case 0:
+        return tr("Good morning");
+    case 1:
+        return tr("Good afternoon");
+    }
+    return tr("Good evening");
+}
+
+bool Theme::darkNow() const
+{
+    // Automatic: dark between two times the user can change, 19:00 to 07:00 by default
+    // (UNIT-OS-DEC-0155).
+    const QString mode = m_settings->value(QStringLiteral("appearance.mode"), QStringLiteral("light")).toString();
+    if (mode != QLatin1String("automatic"))
+        return mode == QLatin1String("dark");
+    const QTime now = QTime::currentTime();
+    const int from = m_settings->value(QStringLiteral("appearance.automatic-dark-from"), 19 * 60).toInt();
+    const int until = m_settings->value(QStringLiteral("appearance.automatic-dark-until"), 7 * 60).toInt();
+    return unit::automaticIsDark(now.hour() * 60 + now.minute(), from, until);
 }
 
 void Theme::update()
@@ -42,8 +64,7 @@ void Theme::update()
         return m_settings->value(QLatin1String(key), fallback).toInt();
     };
     m_themeName = str("appearance.theme", "daylight");
-    // "automatic" is not yet defined in the design (when it switches); until it is, it shows light.
-    m_dark = str("appearance.mode", "light") == QLatin1String("dark");
+    m_dark = darkNow();
     m_reduceTransparency = m_settings->value(QStringLiteral("appearance.reduce-transparency"), false).toBool();
 
     const unit::ThemeId id = unit::themeFromName(m_themeName.toStdString());
@@ -62,7 +83,7 @@ void Theme::update()
     m_text = qcolor(t.text);
     m_secondary = qcolor(t.secondary);
     m_accent = qcolor(accent);
-    m_accentSoft = softAccent(accent, t.surface, m_dark);
+    m_accentSoft = qcolor(unit::accentSoft(accent, t, mode));
     m_textOnAccent = qcolor(unit::textOnAccent(accent, id));
     m_danger = qcolor(t.danger);
     m_warning = qcolor(t.warning);

@@ -38,17 +38,10 @@ pub enum Kind {
 pub struct Spec {
     pub key: &'static str,
     pub kind: Kind,
-    /// Shown and stored, but nothing behind it yet in emulation (gap G6, UNIT-OS-DEC-0131): the
-    /// Shell UI marks it as an emulation placeholder.
-    pub simulated: bool,
 }
 
 const fn spec(key: &'static str, kind: Kind) -> Spec {
-    Spec { key, kind, simulated: false }
-}
-
-const fn simulated(key: &'static str, default: bool) -> Spec {
-    Spec { key, kind: Kind::Bool { default }, simulated: true }
+    Spec { key, kind }
 }
 
 /// The accent choices (Visual Design Specification §3.1). `theme` is the chosen theme's own
@@ -82,11 +75,9 @@ pub const SCHEMA: &[Spec] = &[
     spec("quick.brightness", Kind::Int { min: 5, max: 100, default: 80 }),
     spec("quick.volume", Kind::Int { min: 0, max: 100, default: 50 }),
     spec("quick.power-mode", Kind::Choice { options: &["saver", "balanced", "performance"], default: "balanced" }),
-    simulated("quick.wifi", true),
-    simulated("quick.bluetooth", false),
-    simulated("quick.battery-saver", false),
-    simulated("quick.rotation-lock", false),
-    simulated("quick.vr-mode", false),
+    // The simulated tiles (Wi-Fi, Bluetooth, battery saver, rotation lock, VR mode) are not
+    // settings: their state lives only in the Shell UI and resets at restart (gap G6,
+    // UNIT-OS-DEC-0129).
 ];
 
 pub fn spec_for(key: &str) -> Option<&'static Spec> {
@@ -359,8 +350,7 @@ impl SettingsService {
     }
 
     /// A setting's type ("bool", "int" or "choice"), default and limits: "min" and "max" for
-    /// whole numbers, "options" for choices, and "simulated" when nothing is behind the setting
-    /// yet in emulation.
+    /// whole numbers, and "options" for choices.
     async fn describe(&self, key: &str) -> Result<(String, OwnedValue, HashMap<String, OwnedValue>), Error> {
         let spec = spec_for(key).ok_or_else(|| Error::UnknownKey(key.to_string()))?;
         let owned = |v: Variant<'_>| v.try_into_owned().expect("a plain value holds no file descriptor");
@@ -375,7 +365,6 @@ impl SettingsService {
             }
             Kind::Bool { .. } => {}
         }
-        limits.insert("simulated".to_string(), owned(Variant::from(spec.simulated)));
         Ok((spec.type_name().to_string(), spec.default_value().to_variant(), limits))
     }
 
@@ -438,18 +427,26 @@ mod tests {
     }
 
     #[test]
+    fn simulated_tiles_are_not_settings() {
+        // Gap G6 (UNIT-OS-DEC-0129): the Shell UI holds their state; nothing stores it.
+        for key in ["quick.wifi", "quick.bluetooth", "quick.battery-saver", "quick.rotation-lock", "quick.vr-mode"] {
+            assert!(spec_for(key).is_none(), "{} is a setting", key);
+        }
+    }
+
+    #[test]
     fn kept_across_restart() {
         let dir = TestDir::new();
         let path = dir.path().join("settings");
         let mut s = Settings::load(path.clone());
         s.set("appearance.theme", Value::Choice("pebble".into())).unwrap();
         s.set("appearance.corner-radius", Value::Int(8)).unwrap();
-        s.set("quick.wifi", Value::Bool(false)).unwrap();
+        s.set("appearance.reduce-transparency", Value::Bool(true)).unwrap();
         s.save().unwrap();
         let again = Settings::load(path);
         assert_eq!(again.get("appearance.theme"), Some(&Value::Choice("pebble".into())));
         assert_eq!(again.get("appearance.corner-radius"), Some(&Value::Int(8)));
-        assert_eq!(again.get("quick.wifi"), Some(&Value::Bool(false)));
+        assert_eq!(again.get("appearance.reduce-transparency"), Some(&Value::Bool(true)));
     }
 
     #[test]

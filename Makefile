@@ -4,6 +4,7 @@
 #   make smoke           boot the emulation image in QEMU and run the smoke check
 #   make harness         boot the emulation image in QEMU and run the test harness
 #   make display         boot the emulation image with the Unit compositor and check display and input
+#   make shell           boot the emulation image with the Shell UI and check its home screen
 #   make menuconfig      change the configuration; save with 'make savedefconfig'
 UNIT_IMAGE ?= unit_qemu_x86_64
 O ?= $(CURDIR)/output/$(UNIT_IMAGE)
@@ -27,7 +28,10 @@ harness:
 display:
 	scripts/qemu-display.sh $(O)/images
 
+shell:
+	scripts/qemu-shell.sh $(O)/images
+
 clean:
 	rm -rf $(O)
 
-.PHONY: all smoke harness display clean menuconfig savedefconfig linux-menuconfig legal-info source
+.PHONY: all smoke harness display shell clean menuconfig savedefconfig linux-menuconfig legal-info source

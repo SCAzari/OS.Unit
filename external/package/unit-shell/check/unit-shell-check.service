@@ -1,0 +1,14 @@
+[Unit]
+Description=Unit OS Shell UI check (emulation)
+ConditionKernelCommandLine=unit.shell_check=1
+After=unit-compositor.service
+Wants=unit-compositor.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/unit/unit-shell-check
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

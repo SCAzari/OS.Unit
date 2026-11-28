@@ -137,6 +137,11 @@ jobs:
       - name: Unit services tests
         working-directory: external/package/unit-services/src
         run: cargo test --locked --release
+      - name: Shell UI colour rules tests
+        working-directory: external/package/unit-shell/src
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror palette.cpp tests/palette_test.cpp -o /tmp/palette_test
+          /tmp/palette_test
       - name: Unit services on a live session bus
         working-directory: external/package/unit-services/src
         run: |
@@ -171,6 +176,8 @@ jobs:
         run: make UNIT_IMAGE=${{ matrix.config }} harness
       - name: Display and input check in emulation (Unit compositor)
         run: make UNIT_IMAGE=${{ matrix.config }} display
+      - name: Shell UI check in emulation
+        run: make UNIT_IMAGE=${{ matrix.config }} shell
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -179,5 +186,6 @@ jobs:
             smoke.log
             harness.log
             display.log
+            shell.log
             results/
           if-no-files-found: warn

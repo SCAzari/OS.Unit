@@ -1,0 +1,32 @@
+#!/bin/sh
+# Shell UI check (UNIT-OS-WP-0009): run by unit-shell-check.service on boots with
+# unit.shell_check=1. Waits for the Shell UI's three surfaces and its connections to the Unit
+# services, tells the host (scripts/qemu-shell.sh) to take its screenshots, then reports.
+# The shell runs under the compositor: its messages come under either identifier.
+log() { journalctl -b -t unit-compositor -t unit-shell -o cat --no-pager 2>/dev/null; }
+wait_for() { # pattern, seconds
+	n=0; while ! log | grep -q "$1"; do sleep 1; n=$((n + 1)); [ $n -ge "$2" ] && return 1; done; return 0
+}
+FAIL=
+for s in unit-home unit-status-bar unit-navigation-bar; do
+	if wait_for "layer surface opened: $s" 180; then echo "UNIT-SHELL: surface $s opened"
+	else echo "UNIT-SHELL: surface $s did not open"; FAIL=1; fi
+done
+wait_for 'connected to the session bus' 30 && echo "UNIT-SHELL: session bus connected" \
+	|| { echo "UNIT-SHELL: no session bus"; FAIL=1; }
+wait_for 'loaded [0-9]* settings' 30 && echo "UNIT-SHELL: $(log | grep -o -m1 'loaded [0-9]* settings')" \
+	|| { echo "UNIT-SHELL: Settings service did not answer"; FAIL=1; }
+wait_for 'applications installed' 30 && echo "UNIT-SHELL: $(log | grep -o -m1 '[0-9]* applications installed')" \
+	|| { echo "UNIT-SHELL: Session service did not answer"; FAIL=1; }
+wait_for 'applications will use WAYLAND_DISPLAY' 5 && echo "UNIT-SHELL: WAYLAND_DISPLAY shared with the service manager" \
+	|| { echo "UNIT-SHELL: WAYLAND_DISPLAY not shared"; FAIL=1; }
+echo "UNIT-SHELL: ready"
+sleep ${UNIT_SHELL_CHECK_HOLD:-40} # time for the host's screenshots
+if [ -n "$FAIL" ]; then
+	log | tail -n 40 | sed 's/^/UNIT-SHELL:   /'
+	echo "UNIT-SHELL: FAIL"
+else
+	log | grep -i 'warn\|error\|qml' | head -n 20 | sed 's/^/UNIT-SHELL:   /'
+	echo "UNIT-SHELL: PASS"
+fi
+systemctl poweroff --no-block

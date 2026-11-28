@@ -29,8 +29,7 @@
   </method>
   <!--
    A setting's type ("bool", "int" or "choice"), default and limits: "min" and "max" for
-   whole numbers, "options" for choices, and "simulated" when nothing is behind the setting
-   yet in emulation.
+   whole numbers, and "options" for choices.
    -->
   <method name="Describe">
     <arg name="key" type="s" direction="in"/>

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Starts the Unit compositor with the Shell UI (UNIT-OS-WP-0009). The compositor starts the shell
+# itself, over a private connection, and restarts it if it fails. Display-check boots
+# (unit.display_check=1) and boots with unit.shell=0 run the compositor alone.
+case " $(cat /proc/cmdline) " in
+*" unit.display_check=1 "* | *" unit.shell=0 "*)
+	exec /usr/bin/unit-compositor ;;
+esac
+exec /usr/bin/unit-compositor --shell /usr/bin/unit-shell
